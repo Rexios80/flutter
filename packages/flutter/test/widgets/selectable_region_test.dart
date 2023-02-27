@@ -602,6 +602,14 @@ void main() {
                     Text('Fine.'),
                   ],
                 ),
+                Stack(
+                  selectionSeparator: '🫥',
+                  children: <Widget>[
+                    Text('🍎'),
+                    Text('🍌'),
+                    Text('🍇'),
+                  ],
+                ),
               ],
             ),
           ),
