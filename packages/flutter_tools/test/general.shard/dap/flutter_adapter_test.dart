@@ -44,7 +44,7 @@ void main() {
         final Completer<void> responseCompleter = Completer<void>();
 
         final FlutterLaunchRequestArguments args = FlutterLaunchRequestArguments(
-          cwd: '/project',
+          cwd: '.',
           program: 'foo.dart',
         );
 
@@ -63,7 +63,7 @@ void main() {
         final Completer<void> responseCompleter = Completer<void>();
 
         final FlutterLaunchRequestArguments args = FlutterLaunchRequestArguments(
-          cwd: '/project',
+          cwd: '.',
           program: 'foo.dart',
           env: <String, String>{
             'MY_TEST_ENV': 'MY_TEST_VALUE',
@@ -85,7 +85,7 @@ void main() {
         final Completer<void> responseCompleter = Completer<void>();
 
         final FlutterLaunchRequestArguments args = FlutterLaunchRequestArguments(
-          cwd: '/project',
+          cwd: '.',
           program: 'foo.dart',
         );
 
@@ -112,7 +112,7 @@ void main() {
             );
 
             final FlutterLaunchRequestArguments args = FlutterLaunchRequestArguments(
-              cwd: '/project',
+              cwd: '.',
               program: 'foo.dart',
             );
 
@@ -146,7 +146,7 @@ void main() {
         );
 
         final FlutterLaunchRequestArguments args = FlutterLaunchRequestArguments(
-          cwd: '/project',
+          cwd: '.',
           program: 'foo.dart',
         );
 
@@ -170,7 +170,7 @@ void main() {
         );
 
         final FlutterLaunchRequestArguments args = FlutterLaunchRequestArguments(
-          cwd: '/project',
+          cwd: '.',
           program: 'foo.dart',
         );
 
@@ -195,7 +195,7 @@ void main() {
 
         final Completer<void> launchCompleter = Completer<void>();
          final FlutterLaunchRequestArguments launchArgs = FlutterLaunchRequestArguments(
-          cwd: '/project',
+          cwd: '.',
           program: 'foo.dart',
         );
         final Completer<void> restartCompleter = Completer<void>();
@@ -210,18 +210,15 @@ void main() {
         expect(adapter.dapToFlutterRequests, isNot(contains('app.restart')));
       });
 
-      test('includes Dart Debug extension progress update', () async {
+      test('includes build progress updates', () async {
         final MockFlutterDebugAdapter adapter = MockFlutterDebugAdapter(
           fileSystem: MemoryFileSystem.test(style: fsStyle),
           platform: platform,
-          preAppStart: (MockFlutterDebugAdapter adapter) {
-            adapter.simulateRawStdout('Waiting for connection from Dart debug extension…');
-          }
         );
         final Completer<void> responseCompleter = Completer<void>();
 
         final FlutterLaunchRequestArguments args = FlutterLaunchRequestArguments(
-          cwd: '/project',
+          cwd: '.',
           program: 'foo.dart',
         );
 
@@ -235,14 +232,56 @@ void main() {
         // Initialize with progress support.
         await adapter.initializeRequest(
           MockRequest(),
-          InitializeRequestArguments(adapterID: 'test', supportsProgressReporting: true, ),
+          DartInitializeRequestArguments(adapterID: 'test', supportsProgressReporting: true, ),
           (_) {},
         );
         await adapter.configurationDoneRequest(MockRequest(), null, () {});
         await adapter.launchRequest(MockRequest(), args, responseCompleter.complete);
         await responseCompleter.future;
 
-        // Ensure we got the expected events prior to the
+        // Ensure we got the expected events prior to the progressEnd.
+        final List<List<Object?>> progressEvents = await progressEventsFuture;
+        expect(progressEvents, containsAllInOrder(<List<String?>>[
+          <String?>['progressStart', 'Launching…'],
+          <String?>['progressUpdate', 'Step 1…'],
+          <String?>['progressUpdate', 'Step 2…'],
+          // progressEnd isn't included because we used takeWhile to stop when it arrived above.
+        ]));
+      });
+
+      test('includes Dart Debug extension progress update', () async {
+        final MockFlutterDebugAdapter adapter = MockFlutterDebugAdapter(
+          fileSystem: MemoryFileSystem.test(style: fsStyle),
+          platform: platform,
+          preAppStart: (MockFlutterDebugAdapter adapter) {
+            adapter.simulateRawStdout('Waiting for connection from Dart debug extension…');
+          }
+        );
+        final Completer<void> responseCompleter = Completer<void>();
+
+        final FlutterLaunchRequestArguments args = FlutterLaunchRequestArguments(
+          cwd: '.',
+          program: 'foo.dart',
+        );
+
+        // Begin listening for progress events up until `progressEnd` (but don't await yet).
+        final Future<List<List<Object?>>> progressEventsFuture =
+            adapter.dapToClientProgressEvents
+              .takeWhile((Map<String, Object?> message) => message['event'] != 'progressEnd')
+              .map((Map<String, Object?> message) => <Object?>[message['event'], (message['body']! as Map<String, Object?>)['message']])
+              .toList();
+
+        // Initialize with progress support.
+        await adapter.initializeRequest(
+          MockRequest(),
+          DartInitializeRequestArguments(adapterID: 'test', supportsProgressReporting: true, ),
+          (_) {},
+        );
+        await adapter.configurationDoneRequest(MockRequest(), null, () {});
+        await adapter.launchRequest(MockRequest(), args, responseCompleter.complete);
+        await responseCompleter.future;
+
+        // Ensure we got the expected events prior to the progressEnd.
         final List<List<Object?>> progressEvents = await progressEventsFuture;
         expect(progressEvents, containsAllInOrder(<List<String>>[
           <String>['progressStart', 'Launching…'],
@@ -261,7 +300,7 @@ void main() {
         final Completer<void> responseCompleter = Completer<void>();
 
         final FlutterAttachRequestArguments args = FlutterAttachRequestArguments(
-          cwd: '/project',
+          cwd: '.',
         );
 
         await adapter.configurationDoneRequest(MockRequest(), null, () {});
@@ -280,7 +319,7 @@ void main() {
 
         final FlutterAttachRequestArguments args =
             FlutterAttachRequestArguments(
-          cwd: '/project',
+          cwd: '.',
           program: 'program/main.dart',
         );
 
@@ -308,7 +347,7 @@ void main() {
 
         final FlutterAttachRequestArguments args =
             FlutterAttachRequestArguments(
-          cwd: '/project',
+          cwd: '.',
           program: 'program/main.dart',
           vmServiceUri: 'ws://1.2.3.4/ws'
         );
@@ -340,7 +379,7 @@ void main() {
 
         final FlutterAttachRequestArguments args =
             FlutterAttachRequestArguments(
-          cwd: '/project',
+          cwd: '.',
           program: 'program/main.dart',
           vmServiceInfoFile: serviceInfoFile.path,
         );
@@ -374,7 +413,7 @@ void main() {
 
         final FlutterAttachRequestArguments args =
             FlutterAttachRequestArguments(
-          cwd: '/project',
+          cwd: '.',
           program: 'program/main.dart',
           vmServiceInfoFile: serviceInfoFile.path,
         );
@@ -408,7 +447,7 @@ void main() {
         final Completer<void> responseCompleter = Completer<void>();
 
         final FlutterAttachRequestArguments args = FlutterAttachRequestArguments(
-          cwd: '/project',
+          cwd: '.',
         );
 
         await adapter.configurationDoneRequest(MockRequest(), null, () {});
@@ -430,7 +469,7 @@ void main() {
         );
 
         final FlutterAttachRequestArguments args = FlutterAttachRequestArguments(
-          cwd: '/project',
+          cwd: '.',
         );
 
         await adapter.configurationDoneRequest(MockRequest(), null, () {});
@@ -518,7 +557,7 @@ void main() {
         final Completer<void> responseCompleter = Completer<void>();
 
         final FlutterLaunchRequestArguments args = FlutterLaunchRequestArguments(
-          cwd: '/project',
+          cwd: '.',
           program: 'foo.dart',
         );
 
@@ -537,7 +576,7 @@ void main() {
         final Completer<void> responseCompleter = Completer<void>();
 
         final FlutterLaunchRequestArguments args = FlutterLaunchRequestArguments(
-          cwd: '/project',
+          cwd: '.',
           program: 'foo.dart',
           noDebug: true,
         );
@@ -557,7 +596,7 @@ void main() {
         final Completer<void> responseCompleter = Completer<void>();
 
         final FlutterLaunchRequestArguments args = FlutterLaunchRequestArguments(
-          cwd: '/project',
+          cwd: '.',
           program: 'foo.dart',
           toolArgs: <String>['--profile'],
         );
@@ -577,7 +616,7 @@ void main() {
         final Completer<void> responseCompleter = Completer<void>();
 
         final FlutterLaunchRequestArguments args = FlutterLaunchRequestArguments(
-          cwd: '/project',
+          cwd: '.',
           program: 'foo.dart',
           toolArgs: <String>['--release'],
         );
@@ -598,7 +637,7 @@ void main() {
       final Completer<void> responseCompleter = Completer<void>();
 
       final FlutterLaunchRequestArguments args = FlutterLaunchRequestArguments(
-        cwd: '/project',
+        cwd: '.',
         program: 'foo.dart',
         toolArgs: <String>['tool_arg'],
         noDebug: true,
@@ -626,13 +665,13 @@ void main() {
       test('dart:ui URI to file path', () async {
         expect(
           adapter.convertOrgDartlangSdkToPath(Uri.parse('org-dartlang-sdk:///flutter/lib/ui/ui.dart')),
-          fs.path.join(flutterRoot, 'bin', 'cache', 'pkg', 'sky_engine', 'lib', 'ui', 'ui.dart'),
+          Uri.file(fs.path.join(flutterRoot, 'bin', 'cache', 'pkg', 'sky_engine', 'lib', 'ui', 'ui.dart')),
         );
       });
 
       test('dart:ui file path to URI', () async {
         expect(
-          adapter.convertPathToOrgDartlangSdk(fs.path.join(flutterRoot, 'bin', 'cache', 'pkg', 'sky_engine', 'lib', 'ui', 'ui.dart')),
+          adapter.convertUriToOrgDartlangSdk(Uri.file(fs.path.join(flutterRoot, 'bin', 'cache', 'pkg', 'sky_engine', 'lib', 'ui', 'ui.dart'))),
           Uri.parse('org-dartlang-sdk:///flutter/lib/ui/ui.dart'),
         );
       });
@@ -640,13 +679,13 @@ void main() {
       test('dart:core URI to file path', () async {
         expect(
           adapter.convertOrgDartlangSdkToPath(Uri.parse('org-dartlang-sdk:///third_party/dart/sdk/lib/core/core.dart')),
-          fs.path.join(flutterRoot, 'bin', 'cache', 'pkg', 'sky_engine', 'lib', 'core', 'core.dart'),
+          Uri.file(fs.path.join(flutterRoot, 'bin', 'cache', 'pkg', 'sky_engine', 'lib', 'core', 'core.dart')),
         );
       });
 
       test('dart:core file path to URI', () async {
         expect(
-          adapter.convertPathToOrgDartlangSdk(fs.path.join(flutterRoot, 'bin', 'cache', 'pkg', 'sky_engine', 'lib', 'core', 'core.dart')),
+          adapter.convertUriToOrgDartlangSdk(Uri.file(fs.path.join(flutterRoot, 'bin', 'cache', 'pkg', 'sky_engine', 'lib', 'core', 'core.dart'))),
           Uri.parse('org-dartlang-sdk:///third_party/dart/sdk/lib/core/core.dart'),
         );
       });
@@ -659,7 +698,7 @@ void main() {
           platform: platform,
         );
         final FlutterLaunchRequestArguments args = FlutterLaunchRequestArguments(
-          cwd: '/project',
+          cwd: '.',
           program: 'foo.dart',
           customTool: '/custom/flutter',
           noDebug: true,
@@ -681,7 +720,7 @@ void main() {
           platform: platform,
         );
         final FlutterLaunchRequestArguments args = FlutterLaunchRequestArguments(
-          cwd: '/project',
+          cwd: '.',
           program: 'foo.dart',
           customTool: '/custom/flutter',
           customToolReplacesArgs: 9999, // replaces all built-in args

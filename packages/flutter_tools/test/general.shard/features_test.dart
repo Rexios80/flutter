@@ -81,12 +81,6 @@ void main() {
       expect(featureFlags.isWebEnabled, true);
     });
 
-    testWithoutContext('Flutter web wasm only enable on master', () {
-      expect(flutterWebWasm.getSettingForChannel('master').enabledByDefault, isTrue);
-      expect(flutterWebWasm.getSettingForChannel('beta').enabledByDefault, isFalse);
-      expect(flutterWebWasm.getSettingForChannel('stable').enabledByDefault, isFalse);
-    });
-
     testWithoutContext('Flutter web help string', () {
       expect(flutterWebFeature.generateHelpMessage(),
       'Enable or disable Flutter for web.');
@@ -400,5 +394,13 @@ void main() {
       });
     }
 
+    test('${nativeAssets.name} availability and default enabled', () {
+      expect(nativeAssets.master.enabledByDefault, false);
+      expect(nativeAssets.master.available, true);
+      expect(nativeAssets.beta.enabledByDefault, false);
+      expect(nativeAssets.beta.available, false);
+      expect(nativeAssets.stable.enabledByDefault, false);
+      expect(nativeAssets.stable.available, false);
+    });
   });
 }

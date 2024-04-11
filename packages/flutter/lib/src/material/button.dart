@@ -40,11 +40,8 @@ import 'theme_data.dart';
 class RawMaterialButton extends StatefulWidget {
   /// Create a button based on [Semantics], [Material], and [InkWell] widgets.
   ///
-  /// The [shape], [elevation], [focusElevation], [hoverElevation],
-  /// [highlightElevation], [disabledElevation], [padding], [constraints],
-  /// [autofocus], and [clipBehavior] arguments must not be null. Additionally,
-  /// [elevation], [focusElevation], [hoverElevation], [highlightElevation], and
-  /// [disabledElevation] must be non-negative.
+  /// The [elevation], [focusElevation], [hoverElevation], [highlightElevation],
+  /// and [disabledElevation] parameters must be non-negative.
   const RawMaterialButton({
     super.key,
     required this.onPressed,
@@ -288,7 +285,7 @@ class RawMaterialButton extends StatefulWidget {
 
   /// {@macro flutter.material.Material.clipBehavior}
   ///
-  /// Defaults to [Clip.none], and must not be null.
+  /// Defaults to [Clip.none].
   final Clip clipBehavior;
 
   /// Whether detected gestures should provide acoustic and/or haptic feedback.
@@ -361,7 +358,7 @@ class _RawMaterialButtonState extends State<RawMaterialButton> with MaterialStat
         right: densityAdjustment.dx,
         bottom: densityAdjustment.dy,
       ),
-    ).clamp(EdgeInsets.zero, EdgeInsetsGeometry.infinity); // ignore_clamp_double_lint
+    ).clamp(EdgeInsets.zero, EdgeInsetsGeometry.infinity);
 
 
     final Widget result = ConstrainedBox(
@@ -516,6 +513,20 @@ class _RenderInputPadding extends RenderShiftedBox {
       constraints: constraints,
       layoutChild: ChildLayoutHelper.dryLayoutChild,
     );
+  }
+
+  @override
+  double? computeDryBaseline(covariant BoxConstraints constraints, TextBaseline baseline) {
+    final RenderBox? child = this.child;
+    if (child == null) {
+      return null;
+    }
+    final double? result = child.getDryBaseline(constraints, baseline);
+    if (result == null) {
+      return null;
+    }
+    final Size childSize = child.getDryLayout(constraints);
+    return result + Alignment.center.alongOffset(getDryLayout(constraints) - childSize as Offset).dy;
   }
 
   @override

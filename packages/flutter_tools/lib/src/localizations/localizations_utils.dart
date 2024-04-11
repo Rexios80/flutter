@@ -64,29 +64,12 @@ class LocaleInfo implements Comparable<LocaleInfo> {
     /// across various countries. For example, we know Taiwan uses traditional (Hant)
     /// script, so it is safe to apply (Hant) to Taiwanese languages.
     if (deriveScriptCode && scriptCode == null) {
-      switch (languageCode) {
-        case 'zh': {
-          if (countryCode == null) {
-            scriptCode = 'Hans';
-          }
-          switch (countryCode) {
-            case 'CN':
-            case 'SG':
-              scriptCode = 'Hans';
-            case 'TW':
-            case 'HK':
-            case 'MO':
-              scriptCode = 'Hant';
-          }
-          break;
-        }
-        case 'sr': {
-          if (countryCode == null) {
-            scriptCode = 'Cyrl';
-          }
-          break;
-        }
-      }
+      scriptCode = switch ((languageCode, countryCode)) {
+        ('zh', 'CN' || 'SG' || null) => 'Hans',
+        ('zh', 'TW' || 'HK' || 'MO') => 'Hant',
+        ('sr', null) => 'Cyrl',
+        _ => null,
+      };
       // Increment length if we were able to assume a scriptCode.
       if (scriptCode != null) {
         length += 1;
@@ -245,7 +228,7 @@ String describeLocale(String tag) {
 
 /// Return the input string as a Dart-parsable string.
 ///
-/// ```
+/// ```none
 /// foo => 'foo'
 /// foo "bar" => 'foo "bar"'
 /// foo 'bar' => "foo 'bar'"
@@ -257,7 +240,7 @@ String describeLocale(String tag) {
 /// in JSON files are escaped. For example, the backspace character (\b)
 /// has to be properly escaped by this function so that the generated
 /// Dart code correctly represents this character:
-/// ```
+/// ```none
 /// foo\bar => 'foo\\bar'
 /// foo\nbar => 'foo\\nbar'
 /// foo\\nbar => 'foo\\\\nbar'
@@ -354,6 +337,8 @@ class LocalizationOptions {
     bool? format,
     bool? useEscaping,
     bool? suppressWarnings,
+    bool? relaxSyntax,
+    bool? useNamedParameters,
   }) : templateArbFile = templateArbFile ?? 'app_en.arb',
        outputLocalizationFile = outputLocalizationFile ?? 'app_localizations.dart',
        outputClass = outputClass ?? 'AppLocalizations',
@@ -363,7 +348,9 @@ class LocalizationOptions {
        nullableGetter = nullableGetter ?? true,
        format = format ?? false,
        useEscaping = useEscaping ?? false,
-       suppressWarnings = suppressWarnings ?? false;
+       suppressWarnings = suppressWarnings ?? false,
+       relaxSyntax = relaxSyntax ?? false,
+       useNamedParameters = useNamedParameters ?? false;
 
   /// The `--arb-dir` argument.
   ///
@@ -455,6 +442,24 @@ class LocalizationOptions {
   ///
   /// Whether or not to suppress warnings.
   final bool suppressWarnings;
+
+  /// The `relax-syntax` argument.
+  ///
+  /// Whether or not to relax the syntax. When specified, the syntax will be
+  /// relaxed so that the special character "{" is treated as a string if it is
+  /// not followed by a valid placeholder and "}" is treated as a string if it
+  /// does not close any previous "{" that is treated as a special character.
+  /// This was added in for backward compatibility and is not recommended
+  /// as it may mask errors.
+  final bool relaxSyntax;
+
+  /// The `use-named-parameters` argument.
+  ///
+  /// Whether or not to use named parameters for the generated localization
+  /// methods.
+  ///
+  /// Defaults to `false`.
+  final bool useNamedParameters;
 }
 
 /// Parse the localizations configuration options from [file].
@@ -498,6 +503,8 @@ LocalizationOptions parseLocalizationsOptionsFromYAML({
     format: _tryReadBool(yamlNode, 'format', logger),
     useEscaping: _tryReadBool(yamlNode, 'use-escaping', logger),
     suppressWarnings: _tryReadBool(yamlNode, 'suppress-warnings', logger),
+    relaxSyntax: _tryReadBool(yamlNode, 'relax-syntax', logger),
+    useNamedParameters: _tryReadBool(yamlNode, 'use-named-parameters', logger),
   );
 }
 
@@ -524,6 +531,7 @@ LocalizationOptions parseLocalizationsOptionsFromCommand({
     format: command.boolArg('format'),
     useEscaping: command.boolArg('use-escaping'),
     suppressWarnings: command.boolArg('suppress-warnings'),
+    useNamedParameters: command.boolArg('use-named-parameters'),
   );
 }
 

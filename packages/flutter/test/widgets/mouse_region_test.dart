@@ -1768,7 +1768,11 @@ void main() {
 
   testWidgets("RenderMouseRegion's debugFillProperties when default", (WidgetTester tester) async {
     final DiagnosticPropertiesBuilder builder = DiagnosticPropertiesBuilder();
-    RenderMouseRegion().debugFillProperties(builder);
+
+    final RenderMouseRegion renderMouseRegion = RenderMouseRegion();
+    addTearDown(renderMouseRegion.dispose);
+
+    renderMouseRegion.debugFillProperties(builder);
 
     final List<String> description = builder.properties.where((DiagnosticsNode node) => !node.isFiltered(DiagnosticLevel.info)).map((DiagnosticsNode node) => node.toString()).toList();
 
@@ -1783,14 +1787,21 @@ void main() {
 
   testWidgets("RenderMouseRegion's debugFillProperties when full", (WidgetTester tester) async {
     final DiagnosticPropertiesBuilder builder = DiagnosticPropertiesBuilder();
-    RenderMouseRegion(
+
+    final RenderErrorBox renderErrorBox = RenderErrorBox();
+    addTearDown(renderErrorBox.dispose);
+
+    final RenderMouseRegion renderMouseRegion = RenderMouseRegion(
       onEnter: (PointerEnterEvent event) {},
       onExit: (PointerExitEvent event) {},
       onHover: (PointerHoverEvent event) {},
       cursor: SystemMouseCursors.click,
       validForMouseTracker: false,
-      child: RenderErrorBox(),
-    ).debugFillProperties(builder);
+      child: renderErrorBox,
+    );
+    addTearDown(renderMouseRegion.dispose);
+
+    renderMouseRegion.debugFillProperties(builder);
 
     final List<String> description = builder.properties.where((DiagnosticsNode node) => !node.isFiltered(DiagnosticLevel.info)).map((DiagnosticsNode node) => node.toString()).toList();
 
@@ -1825,7 +1836,8 @@ void main() {
   });
 
   // Regression test for https://github.com/flutter/flutter/issues/67044
-  testWidgets('Handle mouse events should ignore the detached MouseTrackerAnnotation', (WidgetTester tester) async {
+  testWidgets('Handle mouse events should ignore the detached MouseTrackerAnnotation',
+  (WidgetTester tester) async {
     await tester.pumpWidget(MaterialApp(
       home: Center(
         child: Draggable<int>(
@@ -1851,6 +1863,9 @@ void main() {
 
     // Continue drag mouse should not trigger any assert.
     await gesture.moveBy(const Offset(10.0, 10.0));
+
+     // Dispose gesture
+    await gesture.cancel();
     expect(tester.takeException(), isNull);
   });
 }

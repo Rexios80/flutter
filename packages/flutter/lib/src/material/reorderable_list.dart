@@ -5,6 +5,7 @@
 import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/gestures.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
 import 'debug.dart';
@@ -76,6 +77,7 @@ class ReorderableListView extends StatefulWidget {
     this.onReorderStart,
     this.onReorderEnd,
     this.itemExtent,
+    this.itemExtentBuilder,
     this.prototypeItem,
     this.proxyDecorator,
     this.buildDefaultDragHandles = true,
@@ -96,8 +98,10 @@ class ReorderableListView extends StatefulWidget {
     this.clipBehavior = Clip.hardEdge,
     this.autoScrollerVelocityScalar,
   }) : assert(
-         itemExtent == null || prototypeItem == null,
-         'You can only pass itemExtent or prototypeItem, not both',
+        (itemExtent == null && prototypeItem == null) ||
+        (itemExtent == null && itemExtentBuilder == null) ||
+        (prototypeItem == null && itemExtentBuilder == null),
+        'You can only pass one of itemExtent, prototypeItem and itemExtentBuilder.',
        ),
        assert(
          children.every((Widget w) => w.key != null),
@@ -142,6 +146,7 @@ class ReorderableListView extends StatefulWidget {
     this.onReorderStart,
     this.onReorderEnd,
     this.itemExtent,
+    this.itemExtentBuilder,
     this.prototypeItem,
     this.proxyDecorator,
     this.buildDefaultDragHandles = true,
@@ -163,8 +168,10 @@ class ReorderableListView extends StatefulWidget {
     this.autoScrollerVelocityScalar,
   }) : assert(itemCount >= 0),
        assert(
-         itemExtent == null || prototypeItem == null,
-         'You can only pass itemExtent or prototypeItem, not both',
+         (itemExtent == null && prototypeItem == null) ||
+         (itemExtent == null && itemExtentBuilder == null) ||
+         (prototypeItem == null && itemExtentBuilder == null),
+         'You can only pass one of itemExtent, prototypeItem and itemExtentBuilder.',
        );
 
   /// {@macro flutter.widgets.reorderable_list.itemBuilder}
@@ -268,6 +275,9 @@ class ReorderableListView extends StatefulWidget {
 
   /// {@macro flutter.widgets.list_view.itemExtent}
   final double? itemExtent;
+
+  /// {@macro flutter.widgets.list_view.itemExtentBuilder}
+  final ItemExtentBuilder? itemExtentBuilder;
 
   /// {@macro flutter.widgets.list_view.prototypeItem}
   final Widget? prototypeItem;
@@ -383,38 +393,21 @@ class _ReorderableListViewState extends State<ReorderableListView> {
     // If there is a header or footer we can't just apply the padding to the list,
     // so we break it up into padding for the header, footer and padding for the list.
     final EdgeInsets padding = widget.padding ?? EdgeInsets.zero;
-    late final EdgeInsets headerPadding;
-    late final EdgeInsets footerPadding;
-    late final EdgeInsets listPadding;
-
-    if (widget.header == null && widget.footer == null) {
-      headerPadding = EdgeInsets.zero;
-      footerPadding = EdgeInsets.zero;
-      listPadding = padding;
-    } else if (widget.header != null || widget.footer != null) {
-      switch (widget.scrollDirection) {
-        case Axis.horizontal:
-          if (widget.reverse) {
-            headerPadding = EdgeInsets.fromLTRB(0, padding.top, padding.right, padding.bottom);
-            listPadding = EdgeInsets.fromLTRB(widget.footer != null ? 0 : padding.left, padding.top, widget.header != null ? 0 : padding.right, padding.bottom);
-            footerPadding = EdgeInsets.fromLTRB(padding.left, padding.top, 0, padding.bottom);
-          } else {
-            headerPadding = EdgeInsets.fromLTRB(padding.left, padding.top, 0, padding.bottom);
-            listPadding = EdgeInsets.fromLTRB(widget.header != null ? 0 : padding.left, padding.top, widget.footer != null ? 0 : padding.right, padding.bottom);
-            footerPadding = EdgeInsets.fromLTRB(0, padding.top, padding.right, padding.bottom);
-          }
-        case Axis.vertical:
-          if (widget.reverse) {
-            headerPadding = EdgeInsets.fromLTRB(padding.left, 0, padding.right, padding.bottom);
-            listPadding = EdgeInsets.fromLTRB(padding.left, widget.footer != null ? 0 : padding.top, padding.right, widget.header != null ? 0 : padding.bottom);
-            footerPadding = EdgeInsets.fromLTRB(padding.left, padding.top, padding.right, 0);
-          } else {
-            headerPadding = EdgeInsets.fromLTRB(padding.left, padding.top, padding.right, 0);
-            listPadding = EdgeInsets.fromLTRB(padding.left, widget.header != null ? 0 : padding.top, padding.right, widget.footer != null ? 0 : padding.bottom);
-            footerPadding = EdgeInsets.fromLTRB(padding.left, 0, padding.right, padding.bottom);
-          }
-      }
+    double? start = widget.header == null ? null : 0.0;
+    double? end = widget.footer == null ? null : 0.0;
+    if (widget.reverse) {
+      (start, end) = (end, start);
     }
+
+    final EdgeInsets startPadding, endPadding, listPadding;
+    (startPadding, endPadding, listPadding) = switch (widget.scrollDirection) {
+      Axis.horizontal || Axis.vertical when (start ?? end) == null => (EdgeInsets.zero, EdgeInsets.zero, padding),
+      Axis.horizontal => (padding.copyWith(left: 0), padding.copyWith(right: 0), padding.copyWith(left: start, right: end)),
+      Axis.vertical   => (padding.copyWith(top: 0), padding.copyWith(bottom: 0), padding.copyWith(top: start, bottom: end)),
+    };
+    final (EdgeInsets headerPadding, EdgeInsets footerPadding) = widget.reverse
+        ? (startPadding, endPadding)
+        : (endPadding, startPadding);
 
     return CustomScrollView(
       scrollDirection: widget.scrollDirection,
@@ -440,6 +433,7 @@ class _ReorderableListViewState extends State<ReorderableListView> {
           sliver: SliverReorderableList(
             itemBuilder: _itemBuilder,
             itemExtent: widget.itemExtent,
+            itemExtentBuilder: widget.itemExtentBuilder,
             prototypeItem: widget.prototypeItem,
             itemCount: widget.itemCount,
             onReorder: widget.onReorder,

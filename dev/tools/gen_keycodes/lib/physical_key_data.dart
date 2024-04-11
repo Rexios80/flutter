@@ -80,7 +80,7 @@ class PhysicalKeyData {
   ///
   /// Lines in this file look like this (without the ///):
   ///
-  /// ```
+  /// ```none
   /// key 100   ALT_RIGHT
   /// # key 101 "KEY_LINEFEED"
   /// key 477   F12               FUNCTION
@@ -214,8 +214,6 @@ class PhysicalKeyData {
 /// written with the [toJson] method.
 class PhysicalKeyEntry {
   /// Creates a single key entry from available data.
-  ///
-  /// The [usbHidCode] and [chromiumName] parameters must not be null.
   PhysicalKeyEntry({
     required this.usbHidCode,
     required this.name,

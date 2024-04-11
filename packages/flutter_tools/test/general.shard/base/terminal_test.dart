@@ -5,10 +5,12 @@
 import 'package:flutter_tools/src/base/io.dart';
 import 'package:flutter_tools/src/base/logger.dart';
 import 'package:flutter_tools/src/base/platform.dart';
+import 'package:flutter_tools/src/base/process.dart';
 import 'package:flutter_tools/src/base/terminal.dart';
 import 'package:test/fake.dart';
 
 import '../../src/common.dart';
+import '../../src/fakes.dart';
 
 void main() {
   group('output preferences', () {
@@ -253,6 +255,28 @@ void main() {
     expect(AnsiTerminal(stdio: stdio, platform: const LocalPlatform(), now: DateTime(2018, 1, 10, 23)).preferredStyle, 2);
     expect(AnsiTerminal(stdio: stdio, platform: const LocalPlatform(), now: DateTime(2018, 1, 11, 23)).preferredStyle, 3);
   });
+
+  testWithoutContext('set singleCharMode resilient to StdinException', () async {
+    final FakeStdio stdio = FakeStdio();
+    final AnsiTerminal terminal = AnsiTerminal(stdio: stdio, platform: const LocalPlatform());
+    stdio.stdinHasTerminal = true;
+    stdio._stdin = FakeStdin()..echoModeCallback = (bool _) => throw const StdinException(
+      'Error setting terminal echo mode, OS Error: The handle is invalid.',
+    );
+    terminal.singleCharMode = true;
+  });
+
+  testWithoutContext('singleCharMode is reset by shutdown hook', () {
+    final ShutdownHooks shutdownHooks = ShutdownHooks();
+    final FakeStdio stdio = FakeStdio();
+    final AnsiTerminal terminal = AnsiTerminal(stdio: stdio, platform: const LocalPlatform(), shutdownHooks: shutdownHooks);
+    stdio.stdinHasTerminal = true;
+    stdio._stdin = FakeStdin();
+
+    terminal.singleCharMode = true;
+    shutdownHooks.runShutdownHooks(BufferLogger.test());
+    expect(terminal.singleCharMode, false);
+  });
 }
 
 late Stream<String> mockStdInStream;
@@ -269,14 +293,36 @@ class TestTerminal extends AnsiTerminal {
     return mockStdInStream;
   }
 
+  bool _singleCharMode = false;
+
   @override
-  bool singleCharMode = false;
+  bool get singleCharMode => _singleCharMode;
+
+  void Function(bool newMode)? _singleCharModeCallback;
+
+  @override
+  set singleCharMode(bool newMode) {
+    _singleCharMode = newMode;
+    if (_singleCharModeCallback != null) {
+      _singleCharModeCallback!(newMode);
+    }
+  }
 
   @override
   int get preferredStyle => 0;
 }
 
 class FakeStdio extends Fake implements Stdio {
+  Stream<List<int>>? _stdin;
+
+  @override
+  Stream<List<int>> get stdin {
+    if (_stdin != null) {
+      return _stdin!;
+    }
+    throw UnimplementedError('stdin');
+  }
+
   @override
   bool stdinHasTerminal = false;
 }

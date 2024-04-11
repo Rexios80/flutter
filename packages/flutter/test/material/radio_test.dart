@@ -16,8 +16,6 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/src/gestures/constants.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import '../rendering/mock_canvas.dart';
 import '../widgets/semantics_tester.dart';
 
 void main() {
@@ -584,6 +582,7 @@ void main() {
         ..circle(color: const Color(0x61000000))
         ..circle(color: const Color(0x61000000)),
     );
+    focusNode.dispose();
   });
 
   testWidgets('Material3 - Radio is focusable and has correct focus color', (WidgetTester tester) async {
@@ -662,6 +661,7 @@ void main() {
         ..circle(color: theme.colorScheme.onSurface.withOpacity(0.38))
         ..circle(color: theme.colorScheme.onSurface.withOpacity(0.38)),
     );
+    focusNode.dispose();
   });
 
   testWidgets('Material2 - Radio can be hovered and has correct hover color', (WidgetTester tester) async {
@@ -908,6 +908,8 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.space);
     await tester.pumpAndSettle();
     expect(groupValue, equals(2));
+
+    focusNode2.dispose();
   });
 
   testWidgets('Radio responds to density changes.', (WidgetTester tester) async {
@@ -1224,6 +1226,8 @@ void main() {
         ..circle(color: theme.hoverColor)
         ..circle(color: hoveredFillColor),
     );
+
+    focusNode.dispose();
   });
 
   testWidgets('Material3 - Radio fill color resolves in hovered/focused states', (WidgetTester tester) async {
@@ -1283,7 +1287,7 @@ void main() {
     expect(focusNode.hasPrimaryFocus, isTrue);
     expect(
       Material.of(tester.element(find.byKey(radioKey))),
-      paints..rect()..circle(color: theme.colorScheme.primary.withOpacity(0.12))..circle(color: focusedFillColor),
+      paints..rect()..circle(color: theme.colorScheme.primary.withOpacity(0.1))..circle(color: focusedFillColor),
     );
 
     // Start hovering
@@ -1302,6 +1306,8 @@ void main() {
         ..circle(color: theme.colorScheme.primary.withOpacity(0.08))
         ..circle(color: hoveredFillColor),
     );
+
+    focusNode.dispose();
   });
 
   testWidgets('Radio overlay color resolves in active/pressed/focused/hovered states', (WidgetTester tester) async {
@@ -1447,6 +1453,8 @@ void main() {
         ),
       reason: 'Hovered Radio should use overlay color $hoverOverlayColor over $hoverColor',
     );
+
+    focusNode.dispose();
   });
 
   testWidgets('Do not crash when widget disappears while pointer is down', (WidgetTester tester) async {
@@ -1656,7 +1664,7 @@ void main() {
 
     // selected radio in pressed state
     await tester.pumpWidget(buildRadio());
-    await tester.startGesture(tester.getCenter(find.byType(Radio<bool>)));
+    final TestGesture gesture1 = await tester.startGesture(tester.getCenter(find.byType(Radio<bool>)));
     await tester.pumpAndSettle();
 
     expect(
@@ -1668,7 +1676,7 @@ void main() {
 
     // unselected radio in pressed state
     await tester.pumpWidget(buildRadio(selected: false));
-    await tester.startGesture(tester.getCenter(find.byType(Radio<bool>)));
+    final TestGesture gesture2 = await tester.startGesture(tester.getCenter(find.byType(Radio<bool>)));
     await tester.pumpAndSettle();
 
     expect(
@@ -1701,15 +1709,22 @@ void main() {
     // selected radio in hovered state
     await tester.pumpWidget(Container()); // reset test
     await tester.pumpWidget(buildRadio());
-    final TestGesture gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
-    await gesture.addPointer();
-    await gesture.moveTo(tester.getCenter(find.byType(Radio<bool>)));
+    final TestGesture gesture3 = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture3.addPointer();
+    await gesture3.moveTo(tester.getCenter(find.byType(Radio<bool>)));
     await tester.pumpAndSettle();
 
     expect(
       Material.of(tester.element(find.byType(Radio<bool>))),
       paints..circle(color: theme.hoverColor)..circle(color: colors.secondary)
     );
+
+    focusNode.dispose();
+
+    // Finish gesture to release resources.
+    await gesture1.up();
+    await gesture2.up();
+    await tester.pumpAndSettle();
   });
 
   testWidgets('Material3 - Radio button default overlay colors in hover/focus/press states', (WidgetTester tester) async {
@@ -1743,23 +1758,23 @@ void main() {
 
     // selected radio in pressed state
     await tester.pumpWidget(buildRadio());
-    await tester.startGesture(tester.getCenter(find.byType(Radio<bool>)));
+    final TestGesture gesture1 = await tester.startGesture(tester.getCenter(find.byType(Radio<bool>)));
     await tester.pumpAndSettle();
 
     expect(
         Material.of(tester.element(find.byType(Radio<bool>))),
-        paints..circle(color: colors.onSurface.withOpacity(0.12))
+        paints..circle(color: colors.onSurface.withOpacity(0.1))
           ..circle(color: colors.primary.withOpacity(1))
     );
 
     // unselected radio in pressed state
     await tester.pumpWidget(buildRadio(selected: false));
-    await tester.startGesture(tester.getCenter(find.byType(Radio<bool>)));
+    final TestGesture gesture2 = await tester.startGesture(tester.getCenter(find.byType(Radio<bool>)));
     await tester.pumpAndSettle();
 
     expect(
       Material.of(tester.element(find.byType(Radio<bool>))),
-      paints..circle(color: colors.primary.withOpacity(0.12))..circle(color: colors.onSurfaceVariant.withOpacity(1))
+      paints..circle(color: colors.primary.withOpacity(0.1))..circle(color: colors.onSurfaceVariant.withOpacity(1))
     );
 
     // selected radio in focused state
@@ -1770,7 +1785,7 @@ void main() {
 
     expect(
       Material.of(tester.element(find.byType(Radio<bool>))),
-      paints..circle(color: colors.primary.withOpacity(0.12))..circle(color: colors.primary.withOpacity(1))
+      paints..circle(color: colors.primary.withOpacity(0.1))..circle(color: colors.primary.withOpacity(1))
     );
 
     // unselected radio in focused state
@@ -1781,21 +1796,28 @@ void main() {
 
     expect(
       Material.of(tester.element(find.byType(Radio<bool>))),
-      paints..circle(color: colors.onSurface.withOpacity(0.12))..circle(color: colors.onSurface.withOpacity(1))
+      paints..circle(color: colors.onSurface.withOpacity(0.1))..circle(color: colors.onSurface.withOpacity(1))
     );
 
     // selected radio in hovered state
     await tester.pumpWidget(Container()); // reset test
     await tester.pumpWidget(buildRadio());
-    final TestGesture gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
-    await gesture.addPointer();
-    await gesture.moveTo(tester.getCenter(find.byType(Radio<bool>)));
+    final TestGesture gesture3 = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture3.addPointer();
+    await gesture3.moveTo(tester.getCenter(find.byType(Radio<bool>)));
     await tester.pumpAndSettle();
 
     expect(
       Material.of(tester.element(find.byType(Radio<bool>))),
       paints..circle(color: colors.primary.withOpacity(0.08))..circle(color: colors.primary.withOpacity(1))
     );
+
+    focusNode.dispose();
+
+    // Finish gesture to release resources.
+    await gesture1.up();
+    await gesture2.up();
+    await tester.pumpAndSettle();
   });
 
   testWidgets('Radio.adaptive shows the correct platform widget', (WidgetTester tester) async {
@@ -1892,6 +1914,7 @@ void main() {
         ..circle(color: theme.focusColor)
         ..circle(color: theme.colorScheme.secondary)
     );
+    focusNode.dispose();
   });
 
   testWidgets('Material3 - Radio default overlayColor and fillColor resolves pressed state', (WidgetTester tester) async {
@@ -1939,7 +1962,7 @@ void main() {
 
     expect(getRadioMaterial(tester),
       paints
-        ..circle(color: theme.colorScheme.onSurface.withOpacity(0.12))
+        ..circle(color: theme.colorScheme.onSurface.withOpacity(0.1))
         ..circle(color: theme.colorScheme.primary)
     );
     // Remove pressed and hovered states
@@ -1954,8 +1977,9 @@ void main() {
 
     expect(getRadioMaterial(tester),
       paints
-        ..circle(color: theme.colorScheme.primary.withOpacity(0.12))
+        ..circle(color: theme.colorScheme.primary.withOpacity(0.1))
         ..circle(color: theme.colorScheme.primary)
     );
+    focusNode.dispose();
   });
 }

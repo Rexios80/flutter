@@ -67,10 +67,10 @@ import 'framework.dart';
 class WidgetSpan extends PlaceholderSpan {
   /// Creates a [WidgetSpan] with the given values.
   ///
-  /// The [child] property must be non-null. [WidgetSpan] is a leaf node in
-  /// the [InlineSpan] tree. Child widgets are constrained by the width of the
-  /// paragraph they occupy. Child widget heights are unconstrained, and may
-  /// cause the text to overflow and be ellipsized/truncated.
+  /// [WidgetSpan] is a leaf node in the [InlineSpan] tree. Child widgets are
+  /// constrained by the width of the paragraph they occupy. Child widget
+  /// heights are unconstrained, and may cause the text to overflow and be
+  /// ellipsized/truncated.
   ///
   /// A [TextStyle] may be provided with the [style] property, but only the
   /// decoration, foreground, background, and spacing options will be used.
@@ -90,17 +90,28 @@ class WidgetSpan extends PlaceholderSpan {
   /// Helper function for extracting [WidgetSpan]s in preorder, from the given
   /// [InlineSpan] as a list of widgets.
   ///
-  /// The `textScaleFactor` is the the number of font pixels for each logical
-  /// pixel.
+  /// The `textScaler` is the scaling strategy for scaling the content.
   ///
   /// This function is used by [EditableText] and [RichText] so calling it
   /// directly is rarely necessary.
-  static List<Widget> extractFromInlineSpan(InlineSpan span, double textScaleFactor) {
+  static List<Widget> extractFromInlineSpan(InlineSpan span, TextScaler textScaler) {
     final List<Widget> widgets = <Widget>[];
+    // _kEngineDefaultFontSize is the default font size to use when none of the
+    // ancestor spans specifies one.
+    final List<double> fontSizeStack = <double>[kDefaultFontSize];
     int index = 0;
     // This assumes an InlineSpan tree's logical order is equivalent to preorder.
-    span.visitChildren((InlineSpan span) {
+    bool visitSubtree(InlineSpan span) {
+      final double? fontSizeToPush = switch (span.style?.fontSize) {
+        final double size when size != fontSizeStack.last => size,
+        _ => null,
+      };
+      if (fontSizeToPush != null) {
+        fontSizeStack.add(fontSizeToPush);
+      }
       if (span is WidgetSpan) {
+        final double fontSize = fontSizeStack.last;
+        final double textScaleFactor = fontSize == 0 ? 0 : textScaler.scale(fontSize) / fontSize;
         widgets.add(
           _WidgetSpanParentData(
             span: span,
@@ -115,8 +126,15 @@ class WidgetSpan extends PlaceholderSpan {
         span is WidgetSpan || span is! PlaceholderSpan,
         '$span is a PlaceholderSpan but not a WidgetSpan subclass. This is currently not supported.',
       );
+      span.visitDirectChildren(visitSubtree);
+      if (fontSizeToPush != null) {
+        final double poppedFontSize = fontSizeStack.removeLast();
+        assert(fontSizeStack.isNotEmpty);
+        assert(poppedFontSize == fontSizeToPush);
+      }
       return true;
-    });
+    }
+    visitSubtree(span);
     return widgets;
   }
 
@@ -130,14 +148,17 @@ class WidgetSpan extends PlaceholderSpan {
   /// in-order mapping of widget to laid-out dimensions. If no such dimension
   /// is provided, the widget will be skipped.
   ///
-  /// The `textScaleFactor` will be applied to the laid-out size of the widget.
+  /// The `textScaler` will be applied to the laid-out size of the widget.
   @override
-  void build(ui.ParagraphBuilder builder, { double textScaleFactor = 1.0, List<PlaceholderDimensions>? dimensions }) {
+  void build(ui.ParagraphBuilder builder, {
+    TextScaler textScaler = TextScaler.noScaling,
+    List<PlaceholderDimensions>? dimensions,
+  }) {
     assert(debugAssertIsValid());
     assert(dimensions != null);
     final bool hasStyle = style != null;
     if (hasStyle) {
-      builder.pushStyle(style!.getTextStyle(textScaleFactor: textScaleFactor));
+      builder.pushStyle(style!.getTextStyle(textScaler: textScaler));
     }
     assert(builder.placeholderCount < dimensions!.length);
     final PlaceholderDimensions currentDimensions = dimensions![builder.placeholderCount];
@@ -267,7 +288,7 @@ class _WidgetSpanParentData extends ParentDataWidget<TextParentData> {
   }
 
   @override
-  Type get debugTypicalAncestorWidgetClass => RenderInlineChildrenContainerDefaults;
+  Type get debugTypicalAncestorWidgetClass => RichText;
 }
 
 // A RenderObjectWidget that automatically applies text scaling on inline
@@ -332,22 +353,22 @@ class _RenderScaledInlineWidget extends RenderBox with RenderObjectWithChildMixi
 
   @override
   double computeMaxIntrinsicHeight(double width) {
-    return (child?.computeMaxIntrinsicHeight(width / scale) ?? 0.0) * scale;
+    return (child?.getMaxIntrinsicHeight(width / scale) ?? 0.0) * scale;
   }
 
   @override
   double computeMaxIntrinsicWidth(double height) {
-    return (child?.computeMaxIntrinsicWidth(height / scale) ?? 0.0) * scale;
+    return (child?.getMaxIntrinsicWidth(height / scale) ?? 0.0) * scale;
   }
 
   @override
   double computeMinIntrinsicHeight(double width) {
-    return (child?.computeMinIntrinsicHeight(width / scale) ?? 0.0) * scale;
+    return (child?.getMinIntrinsicHeight(width / scale) ?? 0.0) * scale;
   }
 
   @override
   double computeMinIntrinsicWidth(double height) {
-    return (child?.computeMinIntrinsicWidth(height / scale) ?? 0.0) * scale;
+    return (child?.getMinIntrinsicWidth(height / scale) ?? 0.0) * scale;
   }
 
   @override
@@ -359,10 +380,16 @@ class _RenderScaledInlineWidget extends RenderBox with RenderObjectWithChildMixi
   }
 
   @override
+  double? computeDryBaseline(BoxConstraints constraints, TextBaseline baseline) {
+    final double? distance = child?.getDryBaseline(BoxConstraints(maxWidth: constraints.maxWidth / scale), baseline);
+    return distance == null ? null : scale * distance;
+  }
+
+  @override
   Size computeDryLayout(BoxConstraints constraints) {
     assert(!constraints.hasBoundedHeight);
-    final Size unscaledSize = child?.computeDryLayout(BoxConstraints(maxWidth: constraints.maxWidth / scale)) ?? Size.zero;
-    return unscaledSize * scale;
+    final Size unscaledSize = child?.getDryLayout(BoxConstraints(maxWidth: constraints.maxWidth / scale)) ?? Size.zero;
+    return constraints.constrain(unscaledSize * scale);
   }
 
   @override
@@ -375,7 +402,7 @@ class _RenderScaledInlineWidget extends RenderBox with RenderObjectWithChildMixi
     // Only constrain the width to the maximum width of the paragraph.
     // Leave height unconstrained, which will overflow if expanded past.
     child.layout(BoxConstraints(maxWidth: constraints.maxWidth / scale), parentUsesSize: true);
-    size = child.size * scale;
+    size = constraints.constrain(child.size * scale);
   }
 
   @override

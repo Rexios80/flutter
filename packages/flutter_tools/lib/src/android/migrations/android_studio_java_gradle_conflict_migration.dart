@@ -84,17 +84,17 @@ class AndroidStudioJavaGradleConflictMigration extends ProjectMigrator {
   final Java? _java;
 
   @override
-  void migrate() {
+  Future<void> migrate() async {
     try {
       if (!_gradleWrapperPropertiesFile.existsSync()) {
         logger.printTrace(gradleWrapperNotFound);
         return;
       }
 
-      if (_androidStudio == null || _androidStudio!.version == null) {
+      if (_androidStudio == null || _androidStudio.version == null) {
         logger.printTrace(androidStudioNotFound);
         return;
-      } else if (_androidStudio!.version!.major < androidStudioFlamingo.major) {
+      } else if (_androidStudio.version!.major < androidStudioFlamingo.major) {
         logger.printTrace(androidStudioVersionBelowFlamingo);
         return;
       }

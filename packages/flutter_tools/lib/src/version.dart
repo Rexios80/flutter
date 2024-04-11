@@ -279,6 +279,8 @@ abstract class FlutterVersion {
       localFrameworkCommitDate = DateTime.parse(_gitCommitDate(workingDirectory: flutterRoot));
     } on VersionCheckError {
       return;
+    } on FormatException {
+      return;
     }
     final DateTime? latestFlutterCommitDate = await _getLatestAvailableFlutterDate();
 
@@ -532,7 +534,13 @@ class _FlutterVersionFromFile extends FlutterVersion {
   final String devToolsVersion;
 
   @override
-  void ensureVersionFile() {}
+  void ensureVersionFile() {
+    _ensureLegacyVersionFile(
+      fs: fs,
+      flutterRoot: flutterRoot,
+      frameworkVersion: frameworkVersion,
+    );
+  }
 }
 
 class _FlutterVersionGit extends FlutterVersion {
@@ -599,16 +607,28 @@ class _FlutterVersionGit extends FlutterVersion {
 
   @override
   void ensureVersionFile() {
-    final File legacyVersionFile = fs.file(fs.path.join(flutterRoot, 'version'));
-    if (!legacyVersionFile.existsSync()) {
-      legacyVersionFile.writeAsStringSync(frameworkVersion);
-    }
+    _ensureLegacyVersionFile(
+      fs: fs,
+      flutterRoot: flutterRoot,
+      frameworkVersion: frameworkVersion,
+    );
 
     const JsonEncoder encoder = JsonEncoder.withIndent('  ');
     final File newVersionFile = FlutterVersion.getVersionFile(fs, flutterRoot);
     if (!newVersionFile.existsSync()) {
       newVersionFile.writeAsStringSync(encoder.convert(toJson()));
     }
+  }
+}
+
+void _ensureLegacyVersionFile({
+  required FileSystem fs,
+  required String flutterRoot,
+  required String frameworkVersion,
+}) {
+  final File legacyVersionFile = fs.file(fs.path.join(flutterRoot, 'version'));
+  if (!legacyVersionFile.existsSync()) {
+    legacyVersionFile.writeAsStringSync(frameworkVersion);
   }
 }
 
@@ -689,6 +709,7 @@ class VersionUpstreamValidator {
   static final List<String> _standardRemotes = <String>[
     'https://github.com/flutter/flutter.git',
     'git@github.com:flutter/flutter.git',
+    'ssh://git@github.com/flutter/flutter.git',
   ];
 
   // Strips ".git" suffix from a given string, preferably an url.
@@ -696,11 +717,7 @@ class VersionUpstreamValidator {
   // URLs without ".git" suffix will remain unaffected.
   static final RegExp _patternUrlDotGit = RegExp(r'(.*)(\.git)$');
   static String stripDotGit(String url) {
-    final RegExpMatch? match = _patternUrlDotGit.firstMatch(url);
-    if (match == null) {
-      return url;
-    }
-    return match.group(1)!;
+    return _patternUrlDotGit.firstMatch(url)?.group(1)! ?? url;
   }
 }
 
@@ -1146,14 +1163,11 @@ class VersionFreshnessValidator {
   /// beta releases happen approximately every month.
   @visibleForTesting
   static Duration versionAgeConsideredUpToDate(String channel) {
-    switch (channel) {
-      case 'stable':
-        return const Duration(days: 365 ~/ 2); // Six months
-      case 'beta':
-        return const Duration(days: 7 * 8); // Eight weeks
-      default:
-        return const Duration(days: 7 * 3); // Three weeks
-    }
+    return switch (channel) {
+      'stable' => const Duration(days: 365 ~/ 2), // Six months
+      'beta'   => const Duration(days: 7 * 8),    // Eight weeks
+      _        => const Duration(days: 7 * 3),    // Three weeks
+    };
   }
 
   /// Execute validations and print warning to [logger] if necessary.

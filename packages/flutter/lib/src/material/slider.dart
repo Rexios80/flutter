@@ -424,7 +424,7 @@ class Slider extends StatefulWidget {
   ///
   /// If null, [SliderThemeData.inactiveTrackColor] of the ambient [SliderTheme]
   /// is used. If that is null and [ThemeData.useMaterial3] is true,
-  /// [ColorScheme.surfaceVariant] will be used, otherwise [ColorScheme.primary]
+  /// [ColorScheme.surfaceContainerHighest] will be used, otherwise [ColorScheme.primary]
   /// with an opacity of 0.24 will be used.
   ///
   /// Using a [SliderTheme] gives much more fine-grained control over the
@@ -468,7 +468,7 @@ class Slider extends StatefulWidget {
   ///
   /// If that is also null, If [ThemeData.useMaterial3] is true,
   /// Slider will use [ColorScheme.primary] with an opacity of 0.08 when
-  /// slider thumb is hovered and with an opacity of 0.12 when slider thumb
+  /// slider thumb is hovered and with an opacity of 0.1 when slider thumb
   /// is focused or dragged, If [ThemeData.useMaterial3] is false, defaults
   /// to [ColorScheme.primary] with an opacity of 0.12.
   final MaterialStateProperty<Color?>? overlayColor;
@@ -612,6 +612,11 @@ class _SliderState extends State<Slider> with TickerProviderStateMixin {
 
   bool _dragging = false;
 
+  // For discrete sliders, _handleChanged might receive the same value
+  // multiple times. To avoid calling widget.onChanged repeatedly, the
+  // value from _handleChanged is temporarily saved here.
+  double? _currentChangedValue;
+
   FocusNode? _focusNode;
   FocusNode get focusNode => widget.focusNode ?? _focusNode!;
 
@@ -654,10 +659,9 @@ class _SliderState extends State<Slider> with TickerProviderStateMixin {
     valueIndicatorController.dispose();
     enableController.dispose();
     positionController.dispose();
-    if (overlayEntry != null) {
-      overlayEntry!.remove();
-      overlayEntry = null;
-    }
+    overlayEntry?.remove();
+    overlayEntry?.dispose();
+    overlayEntry = null;
     _focusNode?.dispose();
     super.dispose();
   }
@@ -665,9 +669,11 @@ class _SliderState extends State<Slider> with TickerProviderStateMixin {
   void _handleChanged(double value) {
     assert(widget.onChanged != null);
     final double lerpValue = _lerp(value);
-    if (lerpValue != widget.value) {
-      widget.onChanged!(lerpValue);
-      _focusNode?.requestFocus();
+    if (_currentChangedValue != lerpValue) {
+      _currentChangedValue = lerpValue;
+      if (_currentChangedValue != widget.value) {
+        widget.onChanged!(_currentChangedValue!);
+      }
     }
   }
 
@@ -678,33 +684,21 @@ class _SliderState extends State<Slider> with TickerProviderStateMixin {
 
   void _handleDragEnd(double value) {
     _dragging = false;
+    _currentChangedValue = null;
     widget.onChangeEnd?.call(_lerp(value));
   }
 
   void _actionHandler(_AdjustSliderIntent intent) {
-    final _RenderSlider renderSlider = _renderObjectKey.currentContext!.findRenderObject()! as _RenderSlider;
-    final TextDirection textDirection = Directionality.of(_renderObjectKey.currentContext!);
+    final TextDirection directionality = Directionality.of(_renderObjectKey.currentContext!);
+    final bool shouldIncrease = switch (intent.type) {
+      _SliderAdjustmentType.up    => true,
+      _SliderAdjustmentType.down  => false,
+      _SliderAdjustmentType.left  => directionality == TextDirection.rtl,
+      _SliderAdjustmentType.right => directionality == TextDirection.ltr,
+    };
 
-    switch (intent.type) {
-      case _SliderAdjustmentType.right:
-        switch (textDirection) {
-          case TextDirection.rtl:
-            renderSlider.decreaseAction();
-          case TextDirection.ltr:
-            renderSlider.increaseAction();
-        }
-      case _SliderAdjustmentType.left:
-        switch (textDirection) {
-          case TextDirection.rtl:
-            renderSlider.increaseAction();
-          case TextDirection.ltr:
-            renderSlider.decreaseAction();
-        }
-      case _SliderAdjustmentType.up:
-        renderSlider.increaseAction();
-      case _SliderAdjustmentType.down:
-        renderSlider.decreaseAction();
-    }
+    final _RenderSlider slider = _renderObjectKey.currentContext!.findRenderObject()! as _RenderSlider;
+    return shouldIncrease ? slider.increaseAction() : slider.decreaseAction();
   }
 
   bool _focused = false;
@@ -876,21 +870,21 @@ class _SliderState extends State<Slider> with TickerProviderStateMixin {
         };
     }
 
-    final Map<ShortcutActivator, Intent> shortcutMap;
-    switch (MediaQuery.navigationModeOf(context)) {
-      case NavigationMode.directional:
-        shortcutMap = _directionalNavShortcutMap;
-      case NavigationMode.traditional:
-        shortcutMap = _traditionalNavShortcutMap;
-    }
+    final Map<ShortcutActivator, Intent> shortcutMap = switch (MediaQuery.navigationModeOf(context)) {
+      NavigationMode.directional => _directionalNavShortcutMap,
+      NavigationMode.traditional => _traditionalNavShortcutMap,
+    };
 
-    final double textScaleFactor = theme.useMaterial3
+    final double fontSize = sliderTheme.valueIndicatorTextStyle?.fontSize ?? kDefaultFontSize;
+    final double fontSizeToScale = fontSize == 0.0 ? kDefaultFontSize : fontSize;
+    final TextScaler textScaler = theme.useMaterial3
       // TODO(tahatesser): This is an eye-balled value.
       // This needs to be updated when accessibility
       // guidelines are available on the material specs page
       // https://m3.material.io/components/sliders/accessibility.
-      ? math.min(MediaQuery.textScaleFactorOf(context), 1.3)
-      : MediaQuery.textScaleFactorOf(context);
+      ? MediaQuery.textScalerOf(context).clamp(maxScaleFactor: 1.3)
+      : MediaQuery.textScalerOf(context);
+    final double effectiveTextScale = textScaler.scale(fontSizeToScale) / fontSizeToScale;
 
     return Semantics(
       container: true,
@@ -914,7 +908,7 @@ class _SliderState extends State<Slider> with TickerProviderStateMixin {
             divisions: widget.divisions,
             label: widget.label,
             sliderTheme: sliderTheme,
-            textScaleFactor: textScaleFactor,
+            textScaleFactor: effectiveTextScale,
             screenSize: screenSize(),
             onChanged: (widget.onChanged != null) && (widget.max > widget.min) ? _handleChanged : null,
             onChangeStart: _handleDragStart,
@@ -1116,8 +1110,9 @@ class _RenderSlider extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
       parent: _state.valueIndicatorController,
       curve: Curves.fastOutSlowIn,
     )..addStatusListener((AnimationStatus status) {
-      if (status == AnimationStatus.dismissed && _state.overlayEntry != null) {
-        _state.overlayEntry!.remove();
+      if (status == AnimationStatus.dismissed) {
+        _state.overlayEntry?.remove();
+        _state.overlayEntry?.dispose();
         _state.overlayEntry = null;
       }
     });
@@ -1376,24 +1371,20 @@ class _RenderSlider extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
     if (hovered && hoveringThumb) {
       _state.overlayController.forward();
     } else {
-      // Only remove overlay when Slider is unfocused.
-      if (!hasFocus) {
+      // Only remove overlay when Slider is inactive and unfocused.
+      if (!_active && !hasFocus) {
         _state.overlayController.reverse();
       }
     }
   }
 
   bool get showValueIndicator {
-    switch (_sliderTheme.showValueIndicator!) {
-      case ShowValueIndicator.onlyForDiscrete:
-        return isDiscrete;
-      case ShowValueIndicator.onlyForContinuous:
-        return !isDiscrete;
-      case ShowValueIndicator.always:
-        return true;
-      case ShowValueIndicator.never:
-        return false;
-    }
+    return switch (_sliderTheme.showValueIndicator!) {
+      ShowValueIndicator.onlyForDiscrete   => isDiscrete,
+      ShowValueIndicator.onlyForContinuous => !isDiscrete,
+      ShowValueIndicator.always => true,
+      ShowValueIndicator.never  => false,
+    };
   }
 
   double get _adjustmentUnit {
@@ -1457,17 +1448,17 @@ class _RenderSlider extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
 
   @override
   void dispose() {
+    _drag.dispose();
+    _tap.dispose();
     _labelPainter.dispose();
     super.dispose();
   }
 
   double _getValueFromVisualPosition(double visualPosition) {
-    switch (textDirection) {
-      case TextDirection.rtl:
-        return 1.0 - visualPosition;
-      case TextDirection.ltr:
-        return visualPosition;
-    }
+    return switch (textDirection) {
+      TextDirection.rtl => 1.0 - visualPosition,
+      TextDirection.ltr => visualPosition,
+    };
   }
 
   double _getValueFromGlobalPosition(Offset globalPosition) {
@@ -1484,6 +1475,9 @@ class _RenderSlider extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
   }
 
   void _startInteraction(Offset globalPosition) {
+    if (!_state.mounted) {
+      return;
+    }
     _state.showValueIndicator();
     if (!_active && isInteractive) {
       switch (allowedInteraction) {
@@ -1491,14 +1485,13 @@ class _RenderSlider extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
         case SliderInteraction.tapOnly:
           _active = true;
           _currentDragValue = _getValueFromGlobalPosition(globalPosition);
-          onChanged!(_discretize(_currentDragValue));
         case SliderInteraction.slideThumb:
           if (_isPointerOnOverlay(globalPosition)) {
             _active = true;
             _currentDragValue = value;
           }
         case SliderInteraction.slideOnly:
-          break;
+          onChangeStart?.call(_discretize(value));
       }
 
       if (_active) {
@@ -1506,6 +1499,7 @@ class _RenderSlider extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
         // a tap, it consists of a call to onChangeStart with the previous value and
         // a call to onChangeEnd with the new value.
         onChangeStart?.call(_discretize(value));
+        onChanged!(_discretize(_currentDragValue));
         _state.overlayController.forward();
         if (showValueIndicator) {
           _state.valueIndicatorController.forward();
@@ -1559,12 +1553,10 @@ class _RenderSlider extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
       case SliderInteraction.slideThumb:
         if (_active && isInteractive) {
           final double valueDelta = details.primaryDelta! / _trackRect.width;
-          switch (textDirection) {
-            case TextDirection.rtl:
-              _currentDragValue -= valueDelta;
-            case TextDirection.ltr:
-              _currentDragValue += valueDelta;
-          }
+          _currentDragValue += switch (textDirection) {
+            TextDirection.rtl => -valueDelta,
+            TextDirection.ltr =>  valueDelta,
+          };
           onChanged!(_discretize(_currentDragValue));
         }
       case SliderInteraction.tapOnly:
@@ -1633,22 +1625,16 @@ class _RenderSlider extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
 
   @override
   void paint(PaintingContext context, Offset offset) {
-    final double value = _state.positionController.value;
-    final double? secondaryValue = _secondaryTrackValue;
+    final double controllerValue = _state.positionController.value;
 
     // The visual position is the position of the thumb from 0 to 1 from left
     // to right. In left to right, this is the same as the value, but it is
     // reversed for right to left text.
-    final double visualPosition;
-    final double? secondaryVisualPosition;
-    switch (textDirection) {
-      case TextDirection.rtl:
-        visualPosition = 1.0 - value;
-        secondaryVisualPosition = (secondaryValue != null) ? (1.0 - secondaryValue) : null;
-      case TextDirection.ltr:
-        visualPosition = value;
-        secondaryVisualPosition = (secondaryValue != null) ? secondaryValue : null;
-    }
+    final (double visualPosition, double? secondaryVisualPosition) = switch (textDirection) {
+      TextDirection.rtl when _secondaryTrackValue == null => (1.0 - controllerValue, null),
+      TextDirection.rtl => (1.0 - controllerValue, 1.0 - _secondaryTrackValue!),
+      TextDirection.ltr => (controllerValue, _secondaryTrackValue),
+    };
 
     final Rect trackRect = _sliderTheme.trackShape!.getPreferredRect(
       parentBox: this,
@@ -1966,6 +1952,7 @@ class _SliderDefaultsM2 extends SliderThemeData {
   SliderComponentShape? get valueIndicatorShape => const RectangularSliderValueIndicatorShape();
 }
 
+// TODO(quncheng): Update M3 defaults to match the latest specs.
 // BEGIN GENERATED TOKEN PROPERTIES - Slider
 
 // Do not edit by hand. The code between the "BEGIN GENERATED" and
@@ -1984,7 +1971,7 @@ class _SliderDefaultsM3 extends SliderThemeData {
   Color? get activeTrackColor => _colors.primary;
 
   @override
-  Color? get inactiveTrackColor => _colors.surfaceVariant;
+  Color? get inactiveTrackColor => _colors.surfaceContainerHighest;
 
   @override
   Color? get secondaryActiveTrackColor => _colors.primary.withOpacity(0.54);
@@ -2019,13 +2006,13 @@ class _SliderDefaultsM3 extends SliderThemeData {
   @override
   Color? get overlayColor => MaterialStateColor.resolveWith((Set<MaterialState> states) {
     if (states.contains(MaterialState.dragged)) {
-      return _colors.primary.withOpacity(0.12);
+      return _colors.primary.withOpacity(0.1);
     }
     if (states.contains(MaterialState.hovered)) {
       return _colors.primary.withOpacity(0.08);
     }
     if (states.contains(MaterialState.focused)) {
-      return _colors.primary.withOpacity(0.12);
+      return _colors.primary.withOpacity(0.1);
     }
 
     return Colors.transparent;

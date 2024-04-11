@@ -22,6 +22,7 @@ void main() {
   group('RawImage', () {
     testWidgets('properties', (WidgetTester tester) async {
       final ui.Image image1 = (await tester.runAsync<ui.Image>(() => createTestImage()))!;
+      addTearDown(image1.dispose);
 
       await tester.pumpWidget(
         Directionality(
@@ -50,6 +51,7 @@ void main() {
       expect(renderObject.isAntiAlias, false);
 
       final ui.Image image2 = (await tester.runAsync<ui.Image>(() => createTestImage(width: 2, height: 2)))!;
+      addTearDown(image2.dispose);
       const String debugImageLabel = 'debugImageLabel';
       const double width = 1;
       const double height = 1;
@@ -742,12 +744,13 @@ void main() {
       expect(properties.properties.first.value, colorToPaint);
     });
   });
+
   testWidgets('Inconsequential golden test', (WidgetTester tester) async {
     // The test validates the Flutter Gold integration. Any changes to the
     // golden file can be approved at any time.
     await tester.pumpWidget(RepaintBoundary(
       child: Container(
-        color: const Color(0xABCDABCD),
+        color: const Color(0xFFF40125),
       ),
     ));
 
@@ -1134,6 +1137,62 @@ void main() {
       contains('textDirection: ltr'),
       contains('verticalDirection: up'),
     ]));
+  });
+
+  testWidgets('Row and IgnoreBaseline (control -- with baseline)', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      const Row(
+        crossAxisAlignment: CrossAxisAlignment.baseline,
+        textBaseline: TextBaseline.alphabetic,
+        textDirection: TextDirection.ltr,
+        children: <Widget>[
+          Text(
+            'a',
+            textDirection: TextDirection.ltr,
+            style: TextStyle(fontSize: 128.0, fontFamily: 'FlutterTest'), // places baseline at y=96
+          ),
+          Text(
+            'b',
+            textDirection: TextDirection.ltr,
+            style: TextStyle(fontSize: 32.0, fontFamily: 'FlutterTest'), // 24 above baseline, 8 below baseline
+          ),
+        ],
+      ),
+    );
+
+    final Offset aPos = tester.getTopLeft(find.text('a'));
+    final Offset bPos = tester.getTopLeft(find.text('b'));
+    expect(aPos.dy, 0.0);
+    expect(bPos.dy, 96.0 - 24.0);
+  });
+
+  testWidgets('Row and IgnoreBaseline (with ignored baseline)', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      const Row(
+        crossAxisAlignment: CrossAxisAlignment.baseline,
+        textBaseline: TextBaseline.alphabetic,
+        textDirection: TextDirection.ltr,
+        children: <Widget>[
+          IgnoreBaseline(
+            child: Text(
+              'a',
+              textDirection: TextDirection.ltr,
+              style: TextStyle(fontSize: 128.0, fontFamily: 'FlutterTest'), // places baseline at y=96
+            ),
+          ),
+          Text(
+            'b',
+            textDirection: TextDirection.ltr,
+            style: TextStyle(fontSize: 32.0, fontFamily: 'FlutterTest'), // 24 above baseline, 8 below baseline
+          ),
+        ],
+      ),
+    );
+
+    final Offset aPos = tester.getTopLeft(find.text('a'));
+    final Offset bPos = tester.getTopLeft(find.text('b'));
+    expect(aPos.dy, 0.0);
+    expect(bPos.dy, 0.0);
   });
 }
 

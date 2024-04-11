@@ -76,9 +76,9 @@ const Duration _kFadeDuration = Duration(milliseconds: 165);
 class CupertinoSegmentedControl<T extends Object> extends StatefulWidget {
   /// Creates an iOS-style segmented control bar.
   ///
-  /// The [children] and [onValueChanged] arguments must not be null. The
-  /// [children] argument must be an ordered [Map] such as a [LinkedHashMap].
-  /// Further, the length of the [children] list must be greater than one.
+  /// The [children] argument must be an ordered [Map] such as a
+  /// [LinkedHashMap]. Further, the length of the [children] list must be
+  /// greater than one.
   ///
   /// Each widget value in the map of [children] must have an associated key
   /// that uniquely identifies this widget. This key is what will be returned
@@ -119,8 +119,6 @@ class CupertinoSegmentedControl<T extends Object> extends StatefulWidget {
   final T? groupValue;
 
   /// The callback that is called when a new option is tapped.
-  ///
-  /// This attribute must not be null.
   ///
   /// The segmented control passes the newly selected widget's associated key
   /// to the callback but does not actually change state until the parent
@@ -626,6 +624,18 @@ class _RenderSegmentedControl<T> extends RenderBox
 
   Size _computeOverallSizeFromChildSize(Size childSize) {
     return constraints.constrain(Size(childSize.width * childCount, childSize.height));
+  }
+
+  @override
+  double? computeDryBaseline(covariant BoxConstraints constraints, TextBaseline baseline) {
+    final Size childSize = _calculateChildSize(constraints);
+    final BoxConstraints childConstraints = BoxConstraints.tight(childSize);
+
+    BaselineOffset baselineOffset = BaselineOffset.noBaseline;
+    for (RenderBox? child = firstChild; child != null; child = childAfter(child)) {
+      baselineOffset = baselineOffset.minOf(BaselineOffset(child.getDryBaseline(childConstraints, baseline)));
+    }
+    return baselineOffset.offset;
   }
 
   @override

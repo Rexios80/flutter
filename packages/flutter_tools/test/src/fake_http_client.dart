@@ -20,23 +20,15 @@ enum HttpMethod {
 }
 
 HttpMethod _fromMethodString(String value) {
-  final String name = value.toLowerCase();
-  switch (name) {
-    case 'get':
-      return HttpMethod.get;
-    case 'put':
-      return HttpMethod.put;
-    case 'delete':
-      return HttpMethod.delete;
-    case 'post':
-      return HttpMethod.post;
-    case 'patch':
-      return HttpMethod.patch;
-    case 'head':
-      return HttpMethod.head;
-    default:
-      throw StateError('Unrecognized HTTP method $value');
-  }
+  return switch (value.toLowerCase()) {
+    'get'    => HttpMethod.get,
+    'put'    => HttpMethod.put,
+    'delete' => HttpMethod.delete,
+    'post'   => HttpMethod.post,
+    'patch'  => HttpMethod.patch,
+    'head'   => HttpMethod.head,
+    _ => throw StateError('Unrecognized HTTP method $value'),
+  };
 }
 
 String _toMethodString(HttpMethod method) {
@@ -147,7 +139,7 @@ class FakeHttpClient implements HttpClient {
   bool Function(X509Certificate cert, String host, int port)? badCertificateCallback;
 
   @override
-  Function(String line)? keyLog;
+  void Function(String line)? keyLog;
 
   @override
   void close({bool force = false}) { }
@@ -341,7 +333,7 @@ class _FakeHttpClientRequest implements HttpClientRequest {
     });
     await completer.future;
     if (_responseError != null) {
-      return Future<HttpClientResponse>.error(_responseError!);
+      return Future<HttpClientResponse>.error(_responseError);
     }
     return _FakeHttpClientResponse(_response);
   }

@@ -30,6 +30,8 @@ class PlistParser {
   static const String kCFBundleExecutableKey = 'CFBundleExecutable';
   static const String kCFBundleVersionKey = 'CFBundleVersion';
   static const String kCFBundleDisplayNameKey = 'CFBundleDisplayName';
+  static const String kCFBundleNameKey = 'CFBundleName';
+  static const String kFLTEnableImpellerKey = 'FLTEnableImpeller';
   static const String kMinimumOSVersionKey = 'MinimumOSVersion';
   static const String kNSPrincipalClassKey = 'NSPrincipalClass';
 
@@ -43,8 +45,6 @@ class PlistParser {
   ///
   /// If [plistFilePath] points to a non-existent file or a file that's not a
   /// valid property list file, this will return null.
-  ///
-  /// The [plistFilePath] argument must not be null.
   String? plistXmlContent(String plistFilePath) {
     if (!_fileSystem.isFileSync(_plutilExecutable)) {
       throw const FileNotFoundException(_plutilExecutable);
@@ -100,8 +100,6 @@ class PlistParser {
   ///
   /// If [plistFilePath] points to a non-existent file or a file that's not a
   /// valid property list file, this will return an empty map.
-  ///
-  /// The [plistFilePath] argument must not be null.
   Map<String, Object> parseFile(String plistFilePath) {
     if (!_fileSystem.isFileSync(plistFilePath)) {
       return const <String, Object>{};
@@ -145,27 +143,18 @@ class PlistParser {
   static final RegExp _nonBase64Pattern = RegExp('[^a-zA-Z0-9+/=]+');
 
   Object? _parseXmlNode(XmlElement node) {
-    switch (node.name.local){
-      case 'string':
-        return node.innerText;
-      case 'real':
-        return double.parse(node.innerText);
-      case 'integer':
-        return int.parse(node.innerText);
-      case 'true':
-        return true;
-      case 'false':
-        return false;
-      case 'date':
-        return DateTime.parse(node.innerText);
-      case 'data':
-        return base64.decode(node.innerText.replaceAll(_nonBase64Pattern, ''));
-      case 'array':
-        return node.children.whereType<XmlElement>().map<Object?>(_parseXmlNode).whereType<Object>().toList();
-      case 'dict':
-        return _parseXmlDict(node);
-    }
-    return null;
+    return switch (node.name.local) {
+      'string'  => node.innerText,
+      'real'    => double.parse(node.innerText),
+      'integer' => int.parse(node.innerText),
+      'true'    => true,
+      'false'   => false,
+      'date'    => DateTime.parse(node.innerText),
+      'data'    => base64.decode(node.innerText.replaceAll(_nonBase64Pattern, '')),
+      'array'   => node.children.whereType<XmlElement>().map<Object?>(_parseXmlNode).whereType<Object>().toList(),
+      'dict'    => _parseXmlDict(node),
+      _         => null,
+    };
   }
 
   /// Parses the Plist file located at [plistFilePath] and returns the value
@@ -175,8 +164,6 @@ class PlistParser {
   /// valid property list file, this will return null.
   ///
   /// If [key] is not found in the property list, this will return null.
-  ///
-  /// The [plistFilePath] and [key] arguments must not be null.
   T? getValueFromFile<T>(String plistFilePath, String key) {
     final Map<String, dynamic> parsed = parseFile(plistFilePath);
     return parsed[key] as T?;

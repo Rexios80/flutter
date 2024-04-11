@@ -7,8 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import '../rendering/mock_canvas.dart';
+import 'package:leak_tracker_flutter_testing/leak_tracker_flutter_testing.dart';
 
 const Color green = Color(0xFF00FF00);
 const Color yellow = Color(0xFFFFFF00);
@@ -188,7 +187,9 @@ void main() {
     expect(widget2Element, same(tester.element(find.byWidget(widget2))));
   });
 
-  testWidgets('duplicated key error message', (WidgetTester tester) async {
+  testWidgets('duplicated key error message',
+  experimentalLeakTesting: LeakTesting.settings.withIgnoredAll(), // leaking by design because of exception
+  (WidgetTester tester) async {
     const Widget widget1 = SizedBox(key: ValueKey<String>('widget 1'), height: 10, width: 10);
     const Widget widget2 = SizedBox(key: ValueKey<String>('widget 1'), height: 100, width: 100);
     const Widget widget3 = SizedBox(key: ValueKey<String>('widget 1'), height: 50, width: 50);
@@ -222,16 +223,18 @@ void main() {
       equalsIgnoringHashCodes(
         '_RenderDiagonal#00000 relayoutBoundary=up1\n'
         ' │ creator: _Diagonal ← Align ← Directionality ← MediaQuery ←\n'
-        ' │   _MediaQueryFromView ← _ViewScope ← View-[GlobalObjectKey\n'
-        ' │   TestFlutterView#00000] ← [root]\n'
+        ' │   _MediaQueryFromView ← _PipelineOwnerScope ← _ViewScope ←\n'
+        ' │   _RawView-[_DeprecatedRawViewKey TestFlutterView#00000] ← View ←\n'
+        ' │   [root]\n'
         ' │ parentData: offset=Offset(0.0, 0.0) (can use size)\n'
         ' │ constraints: BoxConstraints(0.0<=w<=800.0, 0.0<=h<=600.0)\n'
         ' │ size: Size(190.0, 220.0)\n'
         ' │\n'
         ' ├─topLeft: RenderConstrainedBox#00000 relayoutBoundary=up2\n'
         ' │   creator: SizedBox ← _Diagonal ← Align ← Directionality ←\n'
-        ' │     MediaQuery ← _MediaQueryFromView ← _ViewScope ←\n'
-        ' │     View-[GlobalObjectKey TestFlutterView#00000] ← [root]\n'
+        ' │     MediaQuery ← _MediaQueryFromView ← _PipelineOwnerScope ←\n'
+        ' │     _ViewScope ← _RawView-[_DeprecatedRawViewKey\n'
+        ' │     TestFlutterView#00000] ← View ← [root]\n'
         ' │   parentData: offset=Offset(0.0, 0.0) (can use size)\n'
         ' │   constraints: BoxConstraints(unconstrained)\n'
         ' │   size: Size(80.0, 100.0)\n'
@@ -239,8 +242,9 @@ void main() {
         ' │\n'
         ' └─bottomRight: RenderConstrainedBox#00000 relayoutBoundary=up2\n'
         '     creator: SizedBox ← _Diagonal ← Align ← Directionality ←\n'
-        '       MediaQuery ← _MediaQueryFromView ← _ViewScope ←\n'
-        '       View-[GlobalObjectKey TestFlutterView#00000] ← [root]\n'
+        '       MediaQuery ← _MediaQueryFromView ← _PipelineOwnerScope ←\n'
+        '       _ViewScope ← _RawView-[_DeprecatedRawViewKey\n'
+        '       TestFlutterView#00000] ← View ← [root]\n'
         '     parentData: offset=Offset(80.0, 100.0) (can use size)\n'
         '     constraints: BoxConstraints(unconstrained)\n'
         '     size: Size(110.0, 120.0)\n'
@@ -285,14 +289,11 @@ class _Diagonal extends RenderObjectWidget with SlottedMultiChildRenderObjectWid
 
   @override
   Widget? childForSlot(_DiagonalSlot? slot) {
-    switch (slot) {
-      case null:
-        return nullSlot;
-      case _DiagonalSlot.topLeft:
-        return topLeft;
-      case _DiagonalSlot.bottomRight:
-        return bottomRight;
-    }
+    return switch (slot) {
+      null => nullSlot,
+      _DiagonalSlot.topLeft     => topLeft,
+      _DiagonalSlot.bottomRight => bottomRight,
+    };
   }
 
   @override

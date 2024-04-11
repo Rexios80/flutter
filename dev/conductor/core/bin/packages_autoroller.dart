@@ -39,11 +39,6 @@ Future<void> run(
     help: 'Path to GitHub CLI client. If not provided, it is assumed `gh` is '
         'present on the PATH.',
   );
-  // TODO(fujino): delete after recipe has been migrated to stop passing this
-  parser.addOption(
-    'mirror-remote',
-    help: '(Deprecated) this is now a no-op. To change the account, edit this tool.',
-  );
   parser.addOption(
     kUpstreamRemote,
     help: 'The upstream git remote that the feature branch will be merged to.',
@@ -80,8 +75,8 @@ ${parser.usage}
   }
 
   final FrameworkRepository framework = FrameworkRepository(
-    _localCheckouts,
-    mirrorRemote: Remote.mirror(mirrorUrl),
+    _localCheckouts(token),
+    mirrorRemote: const Remote.mirror(mirrorUrl),
     upstreamRemote: Remote.upstream(upstreamUrl),
   );
 
@@ -106,7 +101,7 @@ String _parseOrgName(String remoteUrl) {
   return match.group(1)!;
 }
 
-Checkouts get _localCheckouts {
+Checkouts _localCheckouts(String token) {
   const FileSystem fileSystem = LocalFileSystem();
   const ProcessManager processManager = LocalProcessManager();
   const Platform platform = LocalPlatform();
@@ -114,6 +109,7 @@ Checkouts get _localCheckouts {
     stdout: io.stdout,
     stderr: io.stderr,
     stdin: io.stdin,
+    filter: (String message) => message.replaceAll(token, '[GitHub TOKEN]'),
   );
   return Checkouts(
     fileSystem: fileSystem,

@@ -20,6 +20,7 @@ import 'package:flutter_tools/src/convert.dart';
 import 'package:flutter_tools/src/features.dart';
 import 'package:flutter_tools/src/ios/plist_parser.dart';
 import 'package:flutter_tools/src/project.dart';
+import 'package:flutter_tools/src/resident_runner.dart';
 import 'package:flutter_tools/src/version.dart';
 import 'package:test/fake.dart';
 
@@ -194,6 +195,15 @@ class MemoryStdout extends MemoryIOSink implements io.Stdout {
   bool _hasTerminal = true;
 
   @override
+  // ignore: override_on_non_overriding_member
+  String get lineTerminator => '\n';
+  @override
+  // ignore: override_on_non_overriding_member
+  set lineTerminator(String value) {
+    throw UnimplementedError('Setting the line terminator is not supported');
+  }
+
+  @override
   io.IOSink get nonBlocking => this;
 
   @override
@@ -253,8 +263,20 @@ class FakeStdio extends Stdio {
 class FakeStdin extends Fake implements Stdin {
   final StreamController<List<int>> controller = StreamController<List<int>>();
 
+  void Function(bool mode)? echoModeCallback;
+
+  bool _echoMode = true;
+
   @override
-  bool echoMode = true;
+  bool get echoMode => _echoMode;
+
+  @override
+  set echoMode(bool mode) {
+    _echoMode = mode;
+    if (echoModeCallback != null) {
+      echoModeCallback!(mode);
+    }
+  }
 
   @override
   bool lineMode = true;
@@ -426,7 +448,7 @@ class FakeFlutterVersion implements FlutterVersion {
 
   @override
   String getVersionString({bool redactUnknownBranches = false}) {
-    return 'v0.0.0';
+    return '${getBranchName(redactUnknownBranches: redactUnknownBranches)}/$frameworkRevision';
   }
 
   @override
@@ -443,12 +465,13 @@ class TestFeatureFlags implements FeatureFlags {
     this.isMacOSEnabled = false,
     this.isWebEnabled = false,
     this.isWindowsEnabled = false,
-    this.isSingleWidgetReloadEnabled = false,
     this.isAndroidEnabled = true,
     this.isIOSEnabled = true,
     this.isFuchsiaEnabled = false,
     this.areCustomDevicesEnabled = false,
-    this.isFlutterWebWasmEnabled = false,
+    this.isCliAnimationEnabled = true,
+    this.isNativeAssetsEnabled = false,
+    this.isPreviewDeviceEnabled = false,
   });
 
   @override
@@ -464,9 +487,6 @@ class TestFeatureFlags implements FeatureFlags {
   final bool isWindowsEnabled;
 
   @override
-  final bool isSingleWidgetReloadEnabled;
-
-  @override
   final bool isAndroidEnabled;
 
   @override
@@ -479,31 +499,29 @@ class TestFeatureFlags implements FeatureFlags {
   final bool areCustomDevicesEnabled;
 
   @override
-  final bool isFlutterWebWasmEnabled;
+  final bool isCliAnimationEnabled;
+
+  @override
+  final bool isNativeAssetsEnabled;
+
+  @override
+  final bool isPreviewDeviceEnabled;
 
   @override
   bool isEnabled(Feature feature) {
-    switch (feature) {
-      case flutterWebFeature:
-        return isWebEnabled;
-      case flutterLinuxDesktopFeature:
-        return isLinuxEnabled;
-      case flutterMacOSDesktopFeature:
-        return isMacOSEnabled;
-      case flutterWindowsDesktopFeature:
-        return isWindowsEnabled;
-      case singleWidgetReload:
-        return isSingleWidgetReloadEnabled;
-      case flutterAndroidFeature:
-        return isAndroidEnabled;
-      case flutterIOSFeature:
-        return isIOSEnabled;
-      case flutterFuchsiaFeature:
-        return isFuchsiaEnabled;
-      case flutterCustomDevicesFeature:
-        return areCustomDevicesEnabled;
-    }
-    return false;
+    return switch (feature) {
+      flutterWebFeature => isWebEnabled,
+      flutterLinuxDesktopFeature => isLinuxEnabled,
+      flutterMacOSDesktopFeature => isMacOSEnabled,
+      flutterWindowsDesktopFeature => isWindowsEnabled,
+      flutterAndroidFeature => isAndroidEnabled,
+      flutterIOSFeature => isIOSEnabled,
+      flutterFuchsiaFeature => isFuchsiaEnabled,
+      flutterCustomDevicesFeature => areCustomDevicesEnabled,
+      cliAnimation => isCliAnimationEnabled,
+      nativeAssets => isNativeAssetsEnabled,
+      _ => false,
+    };
   }
 }
 
@@ -528,6 +546,9 @@ class FakeOperatingSystemUtils extends Fake implements OperatingSystemUtils {
 
   @override
   List<File> whichAll(String execName) => <File>[];
+
+  @override
+  int? getDirectorySize(Directory directory) => 10000000; // 10 MB / 9.5 MiB
 
   @override
   void unzip(File file, Directory targetDirectory) { }
@@ -660,5 +681,50 @@ class FakeJava extends Fake implements Java {
   @override
   bool canRun() {
     return _canRun;
+  }
+}
+
+class FakeDevtoolsLauncher extends Fake implements DevtoolsLauncher {
+  FakeDevtoolsLauncher({DevToolsServerAddress? serverAddress})
+      : _serverAddress = serverAddress;
+
+  @override
+  Future<void> get processStart => _processStarted.future;
+
+  final Completer<void> _processStarted = Completer<void>();
+
+  @override
+  Future<void> get ready => readyCompleter.future;
+
+  Completer<void> readyCompleter = Completer<void>()..complete();
+
+  @override
+  DevToolsServerAddress? activeDevToolsServer;
+
+  @override
+  Uri? devToolsUrl;
+
+  @override
+  Uri? dtdUri;
+
+  @override
+  bool printDtdUri = false;
+
+  final DevToolsServerAddress? _serverAddress;
+
+  @override
+  Future<DevToolsServerAddress?> serve() async => _serverAddress;
+
+  @override
+  Future<void> launch(Uri vmServiceUri, {List<String>? additionalArguments}) {
+    _processStarted.complete();
+    return Completer<void>().future;
+  }
+
+  bool closed = false;
+
+  @override
+  Future<void> close() async {
+    closed = true;
   }
 }

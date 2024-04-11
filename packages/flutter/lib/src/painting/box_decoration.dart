@@ -11,6 +11,7 @@ import 'border_radius.dart';
 import 'box_border.dart';
 import 'box_shadow.dart';
 import 'colors.dart';
+import 'debug.dart';
 import 'decoration.dart';
 import 'decoration_image.dart';
 import 'edge_insets.dart';
@@ -84,8 +85,6 @@ class BoxDecoration extends Decoration {
   /// * If [boxShadow] is null, this decoration does not paint a shadow.
   /// * If [gradient] is null, this decoration does not paint gradients.
   /// * If [backgroundBlendMode] is null, this decoration paints with [BlendMode.srcOver]
-  ///
-  /// The [shape] argument must not be null.
   const BoxDecoration({
     this.color,
     this.image,
@@ -232,7 +231,7 @@ class BoxDecoration extends Decoration {
   BoxDecoration scale(double factor) {
     return BoxDecoration(
       color: Color.lerp(null, color, factor),
-      image: image, // TODO(ianh): fade the image from transparent
+      image: DecorationImage.lerp(null, image, factor),
       border: BoxBorder.lerp(null, border, factor),
       borderRadius: BorderRadiusGeometry.lerp(null, borderRadius, factor),
       boxShadow: BoxShadow.lerpList(null, boxShadow, factor),
@@ -307,7 +306,7 @@ class BoxDecoration extends Decoration {
     }
     return BoxDecoration(
       color: Color.lerp(a.color, b.color, t),
-      image: t < 0.5 ? a.image : b.image, // TODO(ianh): cross-fade the image
+      image: DecorationImage.lerp(a.image, b.image, t),
       border: BoxBorder.lerp(a.border, b.border, t),
       borderRadius: BorderRadiusGeometry.lerp(a.borderRadius, b.borderRadius, t),
       boxShadow: BoxShadow.lerpList(a.boxShadow, b.boxShadow, t),
@@ -441,7 +440,20 @@ class _BoxDecorationPainter extends BoxPainter {
     for (final BoxShadow boxShadow in _decoration.boxShadow!) {
       final Paint paint = boxShadow.toPaint();
       final Rect bounds = rect.shift(boxShadow.offset).inflate(boxShadow.spreadRadius);
+      assert(() {
+        if (debugDisableShadows && boxShadow.blurStyle == BlurStyle.outer) {
+          canvas.save();
+          canvas.clipRect(bounds);
+        }
+        return true;
+      }());
       _paintBox(canvas, bounds, paint, textDirection);
+      assert(() {
+        if (debugDisableShadows && boxShadow.blurStyle == BlurStyle.outer) {
+          canvas.restore();
+        }
+        return true;
+      }());
     }
   }
 
