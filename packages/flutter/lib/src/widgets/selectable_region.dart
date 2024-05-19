@@ -1782,14 +1782,12 @@ class _SelectableRegionContainerDelegate extends MultiSelectableSelectionContain
   }
 }
 
-/// An abstract base class for updating multiple [Selectable] children.
+/// A delegate that handles events and updates for multiple [Selectable]
+/// children.
 ///
-/// This class provide basic [SelectionEvent] handling and child [Selectable]
-/// updating. The subclass needs to implement [ensureChildUpdated] to ensure
-/// child [Selectable] is updated properly.
-///
-/// This class optimize the selection update by keeping track of the
-/// [Selectable]s that currently contain the selection edges.
+/// Updates are optimized by tracking which [Selectable]s reside on the edges of
+/// a selection. Subclasses should implement [ensureChildUpdated] to describe
+/// how a [Selectable] should behave when added to a selection.
 abstract class MultiSelectableSelectionContainerDelegate extends SelectionContainerDelegate with ChangeNotifier {
   /// Creates an instance of [MultiSelectableSelectionContainerDelegate].
   MultiSelectableSelectionContainerDelegate({
@@ -2240,13 +2238,10 @@ abstract class MultiSelectableSelectionContainerDelegate extends SelectionContai
   /// Copies the selected contents of all [Selectable]s.
   @override
   SelectedContent? getSelectedContent() {
-    final List<SelectedContent> selections = <SelectedContent>[];
-    for (final Selectable selectable in selectables) {
-      final SelectedContent? data = selectable.getSelectedContent();
-      if (data != null) {
-        selections.add(data);
-      }
-    }
+    final List<SelectedContent> selections = <SelectedContent>[
+      for (final Selectable selectable in selectables)
+        if (selectable.getSelectedContent() case final SelectedContent data) data,
+    ];
     if (selections.isEmpty) {
       return null;
     }

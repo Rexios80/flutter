@@ -1320,7 +1320,7 @@ class RawScrollbarState<T extends RawScrollbar> extends State<T> with TickerProv
   ScrollController? _cachedController;
   Timer? _fadeoutTimer;
   late AnimationController _fadeoutAnimationController;
-  late Animation<double> _fadeoutOpacityAnimation;
+  late CurvedAnimation _fadeoutOpacityAnimation;
   final GlobalKey  _scrollbarPainterKey = GlobalKey();
   bool _hoverIsActive = false;
   bool _thumbDragging = false;
@@ -1724,16 +1724,14 @@ class RawScrollbarState<T extends RawScrollbar> extends State<T> with TickerProv
     // Determines the scroll direction.
     final AxisDirection scrollDirection;
 
-    switch (position.axisDirection) {
-      case AxisDirection.up:
-      case AxisDirection.down:
+    switch (axisDirectionToAxis(position.axisDirection)) {
+      case Axis.vertical:
         if (details.localPosition.dy > scrollbarPainter._thumbOffset) {
           scrollDirection = AxisDirection.down;
         } else {
           scrollDirection = AxisDirection.up;
         }
-      case AxisDirection.left:
-      case AxisDirection.right:
+      case Axis.horizontal:
         if (details.localPosition.dx > scrollbarPainter._thumbOffset) {
           scrollDirection = AxisDirection.right;
         } else {
@@ -2006,6 +2004,7 @@ class RawScrollbarState<T extends RawScrollbar> extends State<T> with TickerProv
     _fadeoutAnimationController.dispose();
     _fadeoutTimer?.cancel();
     scrollbarPainter.dispose();
+    _fadeoutOpacityAnimation.dispose();
     super.dispose();
   }
 

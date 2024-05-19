@@ -856,7 +856,7 @@ class MenuItemButton extends StatefulWidget {
     this.trailingIcon,
     this.closeOnActivate = true,
     this.overflowAxis = Axis.horizontal,
-    required this.child,
+    this.child,
   });
 
   /// Called when the button is tapped or otherwise activated.
@@ -1022,6 +1022,7 @@ class MenuItemButton extends StatefulWidget {
     Color? surfaceTintColor,
     Color? iconColor,
     TextStyle? textStyle,
+    Color? overlayColor,
     double? elevation,
     EdgeInsetsGeometry? padding,
     Size? minimumSize,
@@ -1047,6 +1048,7 @@ class MenuItemButton extends StatefulWidget {
       surfaceTintColor: surfaceTintColor,
       iconColor: iconColor,
       textStyle: textStyle,
+      overlayColor: overlayColor,
       elevation: elevation,
       padding: padding,
       minimumSize: minimumSize,
@@ -1139,7 +1141,7 @@ class _MenuItemButtonState extends State<MenuItemButton> {
         trailingIcon: widget.trailingIcon,
         hasSubmenu: false,
         overflowAxis: _anchor?._orientation ?? widget.overflowAxis,
-        child: widget.child!,
+        child: widget.child,
       ),
     );
 
@@ -1775,6 +1777,7 @@ class SubmenuButton extends StatefulWidget {
     Color? surfaceTintColor,
     Color? iconColor,
     TextStyle? textStyle,
+    Color? overlayColor,
     double? elevation,
     EdgeInsetsGeometry? padding,
     Size? minimumSize,
@@ -1800,6 +1803,7 @@ class SubmenuButton extends StatefulWidget {
       surfaceTintColor: surfaceTintColor,
       iconColor: iconColor,
       textStyle: textStyle,
+      overlayColor: overlayColor,
       elevation: elevation,
       padding: padding,
       minimumSize: minimumSize,
@@ -1982,7 +1986,7 @@ class _SubmenuButtonState extends State<SubmenuButton> {
                 trailingIcon: widget.trailingIcon,
                 hasSubmenu: true,
                 showDecoration: (controller._anchor!._parent?._orientation ?? Axis.horizontal) == Axis.vertical,
-                child: child ?? const SizedBox(),
+                child: child,
               ),
             ),
           ),
@@ -2125,37 +2129,22 @@ class _LocalizedShortcutLabeler {
         keySeparator = '+';
     }
     if (serialized.trigger != null) {
-      final List<String> modifiers = <String>[];
       final LogicalKeyboardKey trigger = serialized.trigger!;
-      if (_usesSymbolicModifiers) {
-        // macOS/iOS platform convention uses this ordering, with ⌘ always last.
-        if (serialized.control!) {
-          modifiers.add(_getModifierLabel(LogicalKeyboardKey.control, localizations));
-        }
-        if (serialized.alt!) {
-          modifiers.add(_getModifierLabel(LogicalKeyboardKey.alt, localizations));
-        }
-        if (serialized.shift!) {
-          modifiers.add(_getModifierLabel(LogicalKeyboardKey.shift, localizations));
-        }
-        if (serialized.meta!) {
-          modifiers.add(_getModifierLabel(LogicalKeyboardKey.meta, localizations));
-        }
-      } else {
-        // These should be in this order, to match the LogicalKeySet version.
-        if (serialized.alt!) {
-          modifiers.add(_getModifierLabel(LogicalKeyboardKey.alt, localizations));
-        }
-        if (serialized.control!) {
-          modifiers.add(_getModifierLabel(LogicalKeyboardKey.control, localizations));
-        }
-        if (serialized.meta!) {
-          modifiers.add(_getModifierLabel(LogicalKeyboardKey.meta, localizations));
-        }
-        if (serialized.shift!) {
-          modifiers.add(_getModifierLabel(LogicalKeyboardKey.shift, localizations));
-        }
-      }
+      final List<String> modifiers = <String>[
+        if (_usesSymbolicModifiers) ...<String>[
+          // MacOS/iOS platform convention uses this ordering, with ⌘ always last.
+          if (serialized.control!) _getModifierLabel(LogicalKeyboardKey.control, localizations),
+          if (serialized.alt!)     _getModifierLabel(LogicalKeyboardKey.alt, localizations),
+          if (serialized.shift!)   _getModifierLabel(LogicalKeyboardKey.shift, localizations),
+          if (serialized.meta!)    _getModifierLabel(LogicalKeyboardKey.meta, localizations),
+        ] else ...<String>[
+          // This order matches the LogicalKeySet version.
+          if (serialized.alt!)     _getModifierLabel(LogicalKeyboardKey.alt, localizations),
+          if (serialized.control!) _getModifierLabel(LogicalKeyboardKey.control, localizations),
+          if (serialized.meta!)    _getModifierLabel(LogicalKeyboardKey.meta, localizations),
+          if (serialized.shift!)   _getModifierLabel(LogicalKeyboardKey.shift, localizations),
+        ],
+      ];
       String? shortcutTrigger;
       final int logicalKeyId = trigger.keyId;
       if (_shortcutGraphicEquivalents.containsKey(trigger)) {
@@ -2992,7 +2981,7 @@ class _MenuItemLabel extends StatelessWidget {
     this.shortcut,
     this.semanticsLabel,
     this.overflowAxis = Axis.vertical,
-    required this.child,
+    this.child,
   });
 
   /// Whether or not this menu has a submenu.
@@ -3022,8 +3011,8 @@ class _MenuItemLabel extends StatelessWidget {
   /// The direction in which the menu item expands.
   final Axis overflowAxis;
 
-  /// The required label child widget.
-  final Widget child;
+  /// An optional child widget that is displayed in the label.
+  final Widget? child;
 
   @override
   Widget build(BuildContext context) {
@@ -3040,14 +3029,15 @@ class _MenuItemLabel extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
               if (leadingIcon != null) leadingIcon!,
-              Expanded(
-                child: ClipRect(
-                  child: Padding(
-                    padding: leadingIcon != null ? EdgeInsetsDirectional.only(start: horizontalPadding) : EdgeInsets.zero,
-                    child: child,
+              if (child != null)
+                Expanded(
+                  child: ClipRect(
+                    child: Padding(
+                      padding: leadingIcon != null ? EdgeInsetsDirectional.only(start: horizontalPadding) : EdgeInsets.zero,
+                      child: child,
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
         ),
@@ -3057,10 +3047,11 @@ class _MenuItemLabel extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
           if (leadingIcon != null) leadingIcon!,
-          Padding(
-            padding: leadingIcon != null ? EdgeInsetsDirectional.only(start: horizontalPadding) : EdgeInsets.zero,
-            child: child,
-          ),
+          if (child != null)
+            Padding(
+              padding: leadingIcon != null ? EdgeInsetsDirectional.only(start: horizontalPadding) : EdgeInsets.zero,
+              child: child,
+            ),
         ],
       );
     }
